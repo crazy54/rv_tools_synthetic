@@ -1,0 +1,3 @@
+Host,Datacenter,Cluster,Switch,# Ports,Free Ports,Promiscuous Mode,Mac Changes,Forged Transmits,Traffic Shaping,Width,Peak,Burst,Policy,Reverse Policy,Notify Switch,Rolling Order,Offload,TSO,Zero Copy Xmit,MTU,VI SDK Server,VI SDK UUID
+VMwarehost1,VMwareDC,VMwareCluster,vSwitch0,1536,1530,False,True,True,False,0,0,0,loadbalance_srcid,True,True,False,True,True,True,1500,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost2,VMwareDC,VMwareCluster,vSwitch0,1536,1530,False,True,True,False,0,0,0,loadbalance_srcid,True,True,False,True,True,True,1500,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a

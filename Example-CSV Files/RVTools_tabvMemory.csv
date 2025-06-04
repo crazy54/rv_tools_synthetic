@@ -1,0 +1,5 @@
+VM,Powerstate,Template,SRM Placeholder,Size MiB,Memory Reservation Locked To Max,Overhead,Max,Consumed,Consumed Overhead,Private,Shared,Swapped,Ballooned,Active,Entitlement,DRS Entitlement,Level,Shares,Reservation,Limit,Hot Add,Annotation,Datacenter,Cluster,Host,Folder,OS according to the configuration file,OS according to the VMware Tools,VM ID,VM UUID,VI SDK Server,VI SDK UUID
+MID-OFBiz-DB,poweredOn,False,False,1024,,0,0,0,0,0,0,0,0,0,0,0,,,0,0,,,,,,,otherGuest,,,a9d89009-2478-5d03-aa70-139f63171d4a,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+MID-OFBiz-WEB,poweredOn,False,False,1024,,0,0,0,0,0,0,0,0,0,0,0,,,0,0,,,,,,,otherGuest,,,7a4a5f50-e3f6-569a-a09c-5a87a6c09e11,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+MID-WORDPRESS-DB,poweredOn,False,False,1024,,0,0,0,0,0,0,0,0,0,0,0,,,0,0,,,,,,,otherGuest,,,cad9168f-294c-51e0-b1c8-3b82b4808f26,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+MID-WORDPRESS-WEB,poweredOn,False,False,1024,,0,0,0,0,0,0,0,0,0,0,0,,,0,0,,,,,,,otherGuest,,,ac005868-ed76-52e3-8f95-3f87f9d356ef,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a

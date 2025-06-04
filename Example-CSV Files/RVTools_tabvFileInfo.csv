@@ -1,0 +1,2 @@
+Friendly Path Name,File Name,File Type,File Size in bytes,Path,Internal Sort Column,VI SDK Server,VI SDK UUID
+This tab page is empty when GetFileInfo option is not set in preferences or when using the CLI the switch -GetFileInfo is not passed. ,,,,,,,

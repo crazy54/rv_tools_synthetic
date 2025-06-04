@@ -1,0 +1,2 @@
+Name,Config status,Address,Accessible,Type,# VMs total,# VMs,Capacity MiB,Provisioned MiB,In Use MiB,Free MiB,Free %,SIOC enabled,SIOC Threshold,# Hosts,Hosts,Cluster name,Cluster capacity MiB,Cluster free space MiB,Block size,Max Blocks,# Extents,Major Version,Version,VMFS Upgradeable,MHA,URL,Object ID,VI SDK Server,VI SDK UUID
+VMwarestore,green,,True,OTHER,4,4,10485760,0,0,10485760,100,,,1,,,,,0,0,0,0,,,,/tmp,datastore-28,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a

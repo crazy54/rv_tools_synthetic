@@ -1,0 +1,5 @@
+Upgrade,VM,Powerstate,Template,SRM Placeholder,VM Version,Tools,Tools Version,Required Version,Upgradeable,Upgrade Policy,Sync time,App status,Heartbeat status,Kernel Crash state,Operation Ready,State change support,Interactive Guest,Annotation,Datacenter,Cluster,Host,Folder,OS according to the configuration file,OS according to the VMware Tools,VMRef,VM ID,VM UUID,VI SDK Server,VI SDK UUID
+,MID-OFBiz-DB,poweredOn,False,False,13,toolsNotInstalled,0,0,Yes,,,,,,,,,,,,,/VMwareDC,otherGuest,,0,,a9d89009-2478-5d03-aa70-139f63171d4a,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+,MID-OFBiz-WEB,poweredOn,False,False,13,toolsNotInstalled,0,0,Yes,,,,,,,,,,,,,/VMwareDC,otherGuest,,1,,7a4a5f50-e3f6-569a-a09c-5a87a6c09e11,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+,MID-WORDPRESS-DB,poweredOn,False,False,13,toolsNotInstalled,0,0,Yes,,,,,,,,,,,,,/VMwareDC,otherGuest,,3,,cad9168f-294c-51e0-b1c8-3b82b4808f26,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+,MID-WORDPRESS-WEB,poweredOn,False,False,13,toolsNotInstalled,0,0,Yes,,,,,,,,,,,,,/VMwareDC,otherGuest,,2,,ac005868-ed76-52e3-8f95-3f87f9d356ef,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a

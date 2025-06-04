@@ -1,0 +1,2 @@
+Switch,Datacenter,Name,Vendor,Version,Description,Created,Host members,Max Ports,# Ports,# VMs,In Traffic Shaping,In Avg,In Peak,In Burst,Out Traffic Shaping,Out Avg,Out Peak,Out Burst,CDP Type,CDP Operation,LACP Name,LACP Mode,LACP Load Balance Alg.,Max MTU,Contact,Admin Name,Object ID,VI SDK Server,VI SDK UUID
+VMwareDVS,VMwareDC,,,7.0.0,,0001/01/01 00:00:00,", ",0,0,,,,,,,,,,,,,,,0,,,dvs-31,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a

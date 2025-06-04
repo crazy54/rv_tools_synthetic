@@ -1,0 +1,9 @@
+Name,Message,Message type,VI SDK Server,VI SDK UUID
+MID-OFBiz-DB,"VMware tools are out of date, not running or not installed!",VM Tools,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+MID-OFBiz-WEB,"VMware tools are out of date, not running or not installed!",VM Tools,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+MID-WORDPRESS-DB,"VMware tools are out of date, not running or not installed!",VM Tools,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+MID-WORDPRESS-WEB,"VMware tools are out of date, not running or not installed!",VM Tools,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost1,NTP Server value is null!,NTP,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost1,NTPD service is not running!,NTPD,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost2,NTP Server value is null!,NTP,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost2,NTPD service is not running!,NTPD,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a

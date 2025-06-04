@@ -1,0 +1,5 @@
+Host,Datacenter,Cluster,Network Device,Driver,Speed,Duplex,MAC,Switch,Uplink port,PCI,WakeOn,VI SDK Server,VI SDK UUID
+VMwarehost1,VMwareDC,VMwareCluster,vmnic0,nvmxnet3,10000,True,00:0c:29:81:d8:a0,vSwitch0,,0000:0b:00.0,False,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost1,VMwareDC,VMwareCluster,vmnic1,nvmxnet3,10000,True,00:0c:29:81:d8:aa,,,0000:13:00.0,False,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost2,VMwareDC,VMwareCluster,vmnic0,nvmxnet3,10000,True,00:0c:29:81:d8:a0,vSwitch0,,0000:0b:00.0,False,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost2,VMwareDC,VMwareCluster,vmnic1,nvmxnet3,10000,True,00:0c:29:81:d8:aa,,,0000:13:00.0,False,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a

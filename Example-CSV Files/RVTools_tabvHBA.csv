@@ -1,0 +1,7 @@
+Host,Datacenter,Cluster,Device,Type,Status,Bus,Pci,Driver,Model,WWN,VI SDK Server,VI SDK UUID
+VMwarehost1,VMwareDC,VMwareCluster,vmhba0,SCSI,unknown,3,0000:03:00.0,pvscsi,PVSCSI SCSI Controller,,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost1,VMwareDC,VMwareCluster,vmhba1,Block SCSI,unknown,0,0000:00:07.1,vmkata,PIIX4 for 430TX/440BX/MX IDE Controller,,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost1,VMwareDC,VMwareCluster,vmhba64,Block SCSI,unknown,0,0000:00:07.1,vmkata,PIIX4 for 430TX/440BX/MX IDE Controller,,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost2,VMwareDC,VMwareCluster,vmhba0,SCSI,unknown,3,0000:03:00.0,pvscsi,PVSCSI SCSI Controller,,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost2,VMwareDC,VMwareCluster,vmhba1,Block SCSI,unknown,0,0000:00:07.1,vmkata,PIIX4 for 430TX/440BX/MX IDE Controller,,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost2,VMwareDC,VMwareCluster,vmhba64,Block SCSI,unknown,0,0000:00:07.1,vmkata,PIIX4 for 430TX/440BX/MX IDE Controller,,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a

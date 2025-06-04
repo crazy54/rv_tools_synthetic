@@ -1,0 +1,3 @@
+Host,Datacenter,Cluster,Port Group,Device,Mac Address,DHCP,IP Address,IP 6 Address,Subnet mask,Gateway,IP 6 Gateway,MTU,VI SDK Server,VI SDK UUID
+VMwarehost1,VMwareDC,VMwareCluster,Management Network,vmk0,00:0c:29:81:d8:a0,True,,,255.0.0.0,127.0.0.1,,1500,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
+VMwarehost2,VMwareDC,VMwareCluster,Management Network,vmk0,00:0c:29:81:d8:a0,True,,,255.0.0.0,127.0.0.1,,1500,192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a

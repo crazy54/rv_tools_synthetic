@@ -1,0 +1,2 @@
+Name,OS type,API type,API version,Version,Patch level,Build,Fullname,Product name,Product version,Product line,Vendor,VI SDK Server,VI SDK UUID
+VMware vCenter Server,linux-amd64,VirtualCenter,6.5,6.5.0,,5973321,VMware vCenter Server 6.5.0 build-5973321 (govmomi simulator),VMware VirtualCenter Server,6.0,vpx,"VMware, Inc.",192.168.1.110,abcc5d49-d528-5899-844e-b9e4cf043e8a
