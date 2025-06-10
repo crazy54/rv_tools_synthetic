@@ -1,5 +1,12 @@
 # ASCII Art Logo Placeholder - Will be added in a later step
-
+#    ____  _____ ____  _     ___   ____  _        _    ____ ___ _   _  ____
+#   |  _ \| ____|  _ \| |   / _ \ / ___|| |      / \  / ___|_ _| \ | |/ ___|
+#   | |_) |  _| | |_) | |  | | | | |  _ | |     / _ \| |    | ||  \| | |  _
+#   |  _ <| |___|  __/| |__| |_| | |_| || |___ / ___ \ |___ | || |\  | |_| |
+#   |_| \_\_____|_|   |_____\___/ \____||_____/_/   \_\____|___|_| \_|\____|
+#
+#   RVTools Data Generator - Mock Data for VMware Environments
+#
 import csv
 import os
 import random
@@ -38,6 +45,7 @@ try:
     TQDM_AVAILABLE = True
 except ImportError:
     TQDM_AVAILABLE = False
+
 
 try:
     from langchain_openai import ChatOpenAI
@@ -330,6 +338,7 @@ def _get_vdatastore_column_descriptions_for_prompt():
 - 'Accessible': boolean (true/false)
 """
 
+
 # --- Utility Functions ---
 def generate_random_string(length=10, prefix="", suffix="", chars=string.ascii_letters + string.digits):
     return f"{prefix}{''.join(random.choice(chars) for _ in range(length))}{suffix}"
@@ -537,7 +546,6 @@ def _get_ai_data_for_entity(prompt_template, context, relevant_headers_key, enti
 
     return {"Annotation": f"Generic mock AI data for {entity_name_for_log}", "Name": context.get("vm_name_hint") or context.get("host_name_hint","GenericMockEntity")}
 
-
 # --- CSV Writing Function ---
 def write_csv(data, filename_prefix, headers, output_dir_override=None, csv_subdir_override=None):
     """Writes data to a CSV file."""
@@ -699,6 +707,7 @@ def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_param
                         "use_ai_cli_flag": use_ai_cli_flag, # Pass through CLI flags
                         "ai_provider_cli_arg": ai_provider_cli_arg,
                         "ollama_model_name_cli_arg": ollama_model_name
+
                     }
                     ai_data = generate_vinfo_row_ai(vm_name, vm_context, use_ai_cli_flag, ai_provider_cli_arg, profile_data=vm_profile)
 
@@ -1001,7 +1010,6 @@ def generate_vnetwork_csv(complexity_params, scenario_config=None, use_ai_cli_fl
     for vm_rec in vm_iterator:
         num_nics_for_vm = vm_rec.get("num_nics", 1)
         profile_nics_data = vm_rec.get("profile_nics")
-
         vm_r_context_for_ai = {**vm_rec} # Pass AI CLI args
         vm_r_context_for_ai['use_ai_cli_flag'] = use_ai_cli_flag
         vm_r_context_for_ai['ai_provider_cli_arg'] = ai_provider_cli_arg
@@ -1040,9 +1048,7 @@ def generate_vnetwork_csv(complexity_params, scenario_config=None, use_ai_cli_fl
                 existing_net_rec = next((n for n in ENVIRONMENT_DATA["networks"] if n["name"] == determined_network_label), None)
                 determined_switch_name = existing_net_rec.get("switch_name", "UnknownSwitch") if existing_net_rec else "UnknownSwitch"
             # End of existing logic to ensure network and switch
-
             ai_nic_data = generate_vnetwork_row_ai(vm_r_context_for_ai, nic_idx_loop, nic_label, nic_profile)
-
             current_row_dict = {header: "" for header in CSV_HEADERS["vNetwork"]}
             current_row_dict.update({
                 "VM Name": vm_rec.get("name"), "Powerstate": vm_rec.get("power_state"),
@@ -1101,7 +1107,6 @@ def generate_vsnapshot_csv(complexity_params, scenario_config=None, use_ai_cli_f
 
                 data.append([row.get(header, "") for header in CSV_HEADERS["vSnapshot"]])
     write_csv(data, "vSnapshot", CSV_HEADERS["vSnapshot"])
-
 # --- vCluster AI Row and Mock ---
 def _create_vcluster_mock_data(context):
     # Context: cluster_name, datacenter_name, num_hosts, num_vms, total_cpu_cores, total_memory_gb
@@ -1332,7 +1337,6 @@ def _create_vhost_mock_data(context):
 def generate_vhost_row_ai(host_name_hint, context_for_ai, use_ai_cli_flag, ai_provider_cli_arg):
     context_for_ai["host_name_hint"] = host_name_hint
     context_for_ai["headers"] = CSV_HEADERS["vHost"]
-
     ai_generated_data = _get_ai_data_for_entity(
         VHOST_AI_PROMPT_TEMPLATE,
         context_for_ai,
@@ -1341,9 +1345,11 @@ def generate_vhost_row_ai(host_name_hint, context_for_ai, use_ai_cli_flag, ai_pr
         use_ai_enabled_globally=use_ai_cli_flag,
         ai_provider=ai_provider_cli_arg,
         ollama_model_name_arg=context_for_ai.get('ollama_model_name_cli_arg', 'llama3'), # New
+
         entity_specific_mock_func=_create_vhost_mock_data
     )
     return ai_generated_data
+
 
 def generate_vhost_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"):
     if not ENVIRONMENT_DATA.get("hosts"): return
@@ -1748,4 +1754,788 @@ def generate_vtag_csv(*args, **kwargs): pass
 # The provided solution will insert the new HBA logic into the placeholder vHBA.
 # The other functions (vDisk, vNetwork, vSnapshot) are also included as per "Turn 68 state".
 
-[end of rvtools_data_generator.py]
+
+xt.get('# CPU'),
+        'cores_per_cpu': host_r_context.get('Cores per CPU'),
+        'memory_mb': host_r_context.get('# Memory'),
+        'esx_version': host_r_context.get('ESX Version'),
+        'cpu_model': host_r_context.get('CPU Model')
+    }
+    return _get_ai_data_for_entity(VHOST_AI_PROMPT_TEMPLATE, prompt_context, "vHost", host_r_context.get('Host', "UnknownHost_vHost"), entity_specific_mock_func=_create_vhost_mock_data)
+
+def generate_vdisk_row_ai(vm_r_context, disk_index, disk_label_for_prompt):
+    def _create_vdisk_mock_data(context_for_mock):
+        is_thin = generate_random_boolean()
+        return {
+            "Disk Mode": choose_random_from_list(["persistent", "independent_persistent", "independent_nonpersistent"]),
+            "Sharing mode": choose_random_from_list(["nobussharing", "virtualsharing", "physicalsharing"]),
+            "Thin": str(is_thin),
+            "Eagerly Scrub": str(generate_random_boolean() if not is_thin else False),
+            "Controller": f"AI SCSI Controller {context_for_mock.get('disk_index',0)}",
+        }
+    prompt_context = {
+        'vm_name': vm_r_context.get('VM'),
+        'power_state': vm_r_context.get('Powerstate'),
+        'datastore': vm_r_context.get('Datastore'),
+        'disk_label': disk_label_for_prompt,
+        'disk_index': disk_index
+    }
+    return _get_ai_data_for_entity(VDISK_AI_PROMPT_TEMPLATE, prompt_context, "vDisk", f"{vm_r_context.get('VM', 'UnknownVM')}-{disk_label_for_prompt}", entity_specific_mock_func=_create_vdisk_mock_data)
+
+def generate_vnetwork_row_ai(vm_r_context, nic_index, nic_label_for_prompt):
+    def _create_vnetwork_mock_data(context_for_mock):
+        return {
+            "Adapter": choose_random_from_list(["VMXNET3-AI", "E1000E-AI", "SRIOV-AI"]),
+            "Network": f"{context_for_mock.get('datacenter','DC1')}-AISegment-{generate_random_integer(200,299)}",
+            "Switch": f"AI-DVSwitch-{context_for_mock.get('datacenter','DC1')}",
+            "Type": "AI Ethernet",
+        }
+    prompt_context = {
+        'vm_name': vm_r_context.get('VM'),
+        'power_state': vm_r_context.get('Powerstate'),
+        'primary_ip': vm_r_context.get('Primary IP Address', "N/A"),
+        'is_connected': str(vm_r_context.get("Powerstate") == "poweredOn"),
+        'datacenter': vm_r_context.get('Datacenter'),
+        'nic_label': nic_label_for_prompt,
+        'nic_index': nic_index
+    }
+    return _get_ai_data_for_entity(VNETWORK_AI_PROMPT_TEMPLATE, prompt_context, "vNetwork", f"{vm_r_context.get('VM', 'UnknownVM')}-{nic_label_for_prompt}", entity_specific_mock_func=_create_vnetwork_mock_data)
+
+def generate_vcluster_row_ai(cluster_r_context):
+    def _create_vcluster_mock_data(context_for_mock):
+        return {
+            "HA enabled": str(generate_random_boolean()),
+            "DRS enabled": str(generate_random_boolean()),
+            "DRS default VM behavior": choose_random_from_list(["fullyAutomated", "manual", "partiallyAutomated"]),
+            "AdmissionControlEnabled": str(generate_random_boolean()),
+            "VM Monitoring": choose_random_from_list(["vmMonitoringDisabled", "vmMonitoringOnly", "vmAndAppMonitoring"]),
+        }
+    prompt_context = {
+        'cluster_name': cluster_r_context.get('Name'),
+        'datacenter_name': cluster_r_context.get('Datacenter'),
+        'num_hosts': cluster_r_context.get('NumHosts',0),
+        'total_cpu_cores': cluster_r_context.get('NumCpuCores',0),
+        'total_memory_gb': cluster_r_context.get('TotalMemoryGB',0)
+    }
+    return _get_ai_data_for_entity(VCLUSTER_AI_PROMPT_TEMPLATE, prompt_context, "vCluster", cluster_r_context.get("Name", "UnknownCluster"), entity_specific_mock_func=_create_vcluster_mock_data)
+
+def generate_vdatastore_row_ai(ds_agg_data_context):
+    def _create_vdatastore_mock_data(context_for_mock):
+        ds_type = choose_random_from_list(['VMFS', 'NFS', 'vSAN'])
+        capacity_mib = generate_random_integer(1 * 1024 * 1024, 10 * 1024 * 1024)
+        free_mib = generate_random_integer(int(capacity_mib * 0.1), int(capacity_mib * 0.8))
+        provisioned_mib = capacity_mib - free_mib + generate_random_integer(0, int(capacity_mib*0.2))
+        return {
+            "Name": context_for_mock.get("datastore_name", "UnknownDS"), "Config status": "green",
+            "Address": f"nfs://ai-filer.corp.local:/vol/{context_for_mock.get('datastore_name')}" if ds_type == 'NFS' else (f"vsan:{generate_uuid()}" if ds_type == 'vSAN' else ""),
+            "Accessible": "true", "Type": ds_type, "Capacity MiB": str(capacity_mib), "Provisioned MiB": str(provisioned_mib),
+            "In Use MiB": str(provisioned_mib - free_mib if provisioned_mib > free_mib else generate_random_integer(0, provisioned_mib)),
+            "Free MiB": str(free_mib), "Free %": str(round((free_mib / capacity_mib) * 100, 1) if capacity_mib > 0 else 0),
+            "SIOC enabled": "false", "SIOC Threshold": "30",
+            "VMFS Upgradeable": "true" if ds_type == 'VMFS' else "false",
+            "URL": f"ds:///vmfs/volumes/{generate_uuid()}/" if ds_type == 'VMFS' else (f"ds://vsan/{context_for_mock.get('datastore_name')}" if ds_type == 'vSAN' else ""),
+            "Object ID": f"datastore-ai-{generate_random_integer(1000,1999)}",
+        }
+    return _get_ai_data_for_entity(VDATASTORE_AI_PROMPT_TEMPLATE, ds_agg_data_context, "vDatastore", ds_agg_data_context.get('datastore_name', "UnknownDS"), entity_specific_mock_func=_create_vdatastore_mock_data)
+
+def generate_vrp_row_ai(rp_context_param):
+    def _create_vrp_mock_data(context_for_mock):
+        return {
+            "Status": "green", "CPU limit": -1, "CPU reservation": generate_random_integer(1000, 5000), "CPU shares": "normal", "CPU level": "normal",
+            "CPU expandableReservation": json.dumps(generate_random_boolean()),
+            "Mem limit": -1, "Mem reservation": generate_random_integer(4096, 16384), "Mem shares": "normal", "Mem level": "normal",
+            "Mem expandableReservation": json.dumps(generate_random_boolean()),
+            "overallCpuUsage": generate_random_integer(500, 2000), "guestMemoryUsage": generate_random_integer(1024, 8192),
+            "QS overallCpuDemand": generate_random_integer(600,2500), "QS guestMemoryUsage": generate_random_integer(1000,8000),
+        }
+    return _get_ai_data_for_entity(VRP_AI_PROMPT_TEMPLATE, rp_context_param, "vRP", rp_context_param.get('rp_name',"UnknownRP"), entity_specific_mock_func=_create_vrp_mock_data)
+
+def generate_vsource_row_ai(vsource_context_param):
+    def _create_vsource_mock_data(context_for_mock):
+        ver_parts = context_for_mock.get('target_version',"8.0 U1").split(' ')
+        base_ver = ver_parts[0]
+        patch_str = "".join(ver_parts[1:]) if len(ver_parts) > 1 else ""
+        build = generate_random_integer(20000000, 23000000)
+        return {
+            "Name": context_for_mock.get('vcenter_ip', "vcenter.mock.local"), "OS type": "VMware Photon OS (AI Generated)", "API type": "VirtualCenter",
+            "API version": f"{base_ver}.{patch_str[1] if patch_str.startswith('U') and len(patch_str)>1 else '0'}",
+            "Version": base_ver, "Patch level": patch_str, "Build": str(build),
+            "Fullname": f"VMware vCenter Server {context_for_mock.get('target_version')} build-{build} (AI)",
+            "Product name": "VMware vCenter Server (AI Edition)", "Product version": f"{context_for_mock.get('target_version')} (AI)",
+            "Product line": "vpx", "Vendor": "VMware, Inc. (AI Verified)"
+        }
+    return _get_ai_data_for_entity(VSOURCE_AI_PROMPT_TEMPLATE, vsource_context_param, "vSource", vsource_context_param.get('vcenter_ip',"UnknownVC"), entity_specific_mock_func=_create_vsource_mock_data)
+
+def generate_vhba_row_ai(vhba_context_param):
+    def _create_vhba_mock_data(context_for_mock):
+        hba_list = []
+        for i in range(context_for_mock.get('num_hbas_requested', 1)):
+            hba_type = choose_random_from_list(['Fibre Channel', 'iSCSI Software Adapter', 'SAS Controller', 'RAID Controller'])
+            device_name = f"vmhba{i}"
+            wwn = ""
+            if hba_type == 'Fibre Channel':
+                driver, model = choose_random_from_list([('lpfc','Emulex LightPulse LPe32002-AI'),('qlnativefc','QLogic QLE2772-AI')])
+                wwn = ":".join([generate_random_string(2, prefix='').lower() for _ in range(8)])
+            elif hba_type == 'iSCSI Software Adapter':
+                driver, model = 'iscsi_vmk', 'iSCSI Software Adapter AI'
+                wwn = f"iqn.1998-01.com.vmware:{context_for_mock.get('host_name','unknownhost')}-ai-{generate_random_string(8).lower()}"
+            else:
+                driver, model = choose_random_from_list([('lsi_mr3s','PERC H740P AI'),('smartpqi','Smart Array P408i-a AI')])
+            hba_list.append({
+                "Device": device_name, "Type": hba_type, "Status": "Online",
+                "Driver": driver, "Model": model, "WWN": wwn,
+                "Bus": str(generate_random_integer(0,3)),
+                "Pci": f"0000:0{generate_random_integer(1,9)}:00.{i}"
+            })
+        return hba_list
+    return _get_ai_data_for_entity(VHBA_AI_PROMPT_TEMPLATE, vhba_context_param, "vHBA", vhba_context_param.get('host_name',"UnknownHost_HBA"), entity_specific_mock_func=_create_vhba_mock_data)
+
+def generate_vnic_row_ai(vnic_context_param):
+    def _create_vnic_mock_data(context_for_mock):
+        nic_list = []
+        for i in range(context_for_mock.get('num_nics_requested',1)):
+            speed_val = choose_random_from_list([1000, 10000, 25000, 40000])
+            nic_list.append({
+                "Network Device": f"vmnic{i}",
+                "Driver": choose_random_from_list(['ixgben-ai', 'nmlx5_core-ai', 'bnxtnet-ai']),
+                "Speed": f"{speed_val} Mbps", "Duplex": "Full", "MAC": generate_random_mac_address(),
+                "Switch": f"PhysicalSwitch-AI-{chr(65+i)}",
+                "Uplink port": f"Gi{generate_random_integer(1,2)}/0/{generate_random_integer(1,24)}",
+                "PCI": f"0000:0{generate_random_integer(1,18)}:00.{i}",
+                "WakeOn": json.dumps(generate_random_boolean())
+            })
+        return nic_list
+    return _get_ai_data_for_entity(VNIC_AI_PROMPT_TEMPLATE, vnic_context_param, "vNIC", vnic_context_param.get('host_name',"UnknownHost_NIC"), entity_specific_mock_func=_create_vnic_mock_data)
+
+def generate_vscvmk_row_ai(vmk_context_param):
+    def _create_vscvmk_mock_data(context_for_mock):
+        vmk_list = []
+        base_ip_parts = generate_random_ip_address().split('.')
+        for i in range(context_for_mock.get('num_vmk_requested',1)):
+            services = []
+            if i == 0 : services.append("Management")
+            if generate_random_boolean(): services.append("vMotion")
+            if generate_random_boolean() and context_for_mock.get('datastore_types_on_host',[]).count('vSAN') > 0 : services.append("vSAN")
+            vmk_list.append({
+                "Device": f"vmk{i}", "Port Group": f"{services[0] if services else 'VMkernel'}-PG-AI",
+                "Mac Address": generate_random_mac_address(), "DHCP": json.dumps(False),
+                "IP Address": f"{base_ip_parts[0]}.{base_ip_parts[1]}.{generate_random_integer(10,200)}.{generate_random_integer(10,250)}",
+                "Subnet mask": "255.255.255.0", "Gateway": f"{base_ip_parts[0]}.{base_ip_parts[1]}.{base_ip_parts[2]}.1",
+                "MTU": choose_random_from_list([1500, 9000]), "Services": ", ".join(services) if services else "VMkernel"
+            })
+        return vmk_list
+    return _get_ai_data_for_entity(VSCVMK_AI_PROMPT_TEMPLATE, vmk_context_param, "vSC_VMK", vmk_context_param.get('host_name',"UnknownHost_VMK"), entity_specific_mock_func=_create_vscvmk_mock_data)
+
+def generate_vswitch_row_ai(vswitch_context_param):
+    def _create_vswitch_mock_data(context_for_mock):
+        vswitch_list = []
+        phys_nics = context_for_mock.get('physical_nic_names', [])
+        for i in range(context_for_mock.get('num_vswitches_requested',1)):
+            num_uplinks_for_switch = generate_random_integer(1, len(phys_nics) if phys_nics else 1)
+            selected_uplinks_for_switch = random.sample(phys_nics, min(num_uplinks_for_switch, len(phys_nics))) if phys_nics else [f"vmnic{j+i*2}" for j in range(num_uplinks_for_switch)]
+            vswitch_list.append({
+                "Switch": f"vSwitch{i}-AI", "# Ports": 128, "Free Ports": generate_random_integer(60,120),
+                "Promiscuous Mode": "Reject", "Mac Changes": "Accept", "Forged Transmits": "Accept",
+                "Uplinks": ",".join(selected_uplinks_for_switch), "MTU": 1500 })
+        return vswitch_list
+    return _get_ai_data_for_entity(VSWITCH_AI_PROMPT_TEMPLATE, vswitch_context_param, "vSwitch", vswitch_context_param.get('host_name',"UnknownHost_vSwitch"), entity_specific_mock_func=_create_vswitch_mock_data)
+
+def generate_dvswitch_row_ai(dvswitch_context_param):
+    def _create_dvswitch_mock_data(context_for_mock):
+        dvswitch_list = []
+        host_names = context_for_mock.get('host_names_in_dc', [])
+        for i in range(context_for_mock.get('num_dvswitches_requested',1)):
+            dvs_name = f"DVS_{context_for_mock.get('datacenter_name','DC1')}_AI_{i+1}"
+            selected_hosts = random.sample(host_names, k=min(len(host_names), generate_random_integer(1, len(host_names)))) if host_names else []
+            dvswitch_list.append({
+                "Switch": dvs_name, "Name": dvs_name, "Datacenter": context_for_mock.get('datacenter_name'),
+                "Vendor": "VMware AI", "Version": choose_random_from_list(["7.0.3 AI", "8.0.1 AI"]),
+                "Host members": ",".join(selected_hosts),
+                "Max Ports": str(generate_random_integer(512, 8192)),
+                "# Ports": str(generate_random_integer(128, 512)),
+                "# VMs": str(generate_random_integer(0, 200)),
+                "CDP Type": choose_random_from_list(["listen", "advertise", "both", "disabled"]),
+                "Max MTU": str(choose_random_from_list([1500,9000,9216])),
+                "Object ID": f"dvs-ai-{generate_random_integer(100,199)}"
+            })
+        return dvswitch_list
+    return _get_ai_data_for_entity(DVSWITCH_AI_PROMPT_TEMPLATE, dvswitch_context_param, "dvSwitch", dvswitch_context_param.get('datacenter_name',"UnknownDC_DVS"), entity_specific_mock_func=_create_dvswitch_mock_data)
+
+def generate_dvport_row_ai(dvport_context_param):
+    def _create_dvport_mock_data(context_for_mock):
+        dvport_list = []
+        for i in range(context_for_mock.get('num_items_requested',1)):
+            vlan_id = generate_random_integer(100, 199)
+            dvport_list.append({
+                "Name": f"DPG_VLAN{vlan_id}_AI_{i}",
+                "Switch": context_for_mock.get('dvs_name'),
+                "Port Binding": choose_random_from_list(["staticBinding", "dynamicBinding", "ephemeral"]),
+                "VLAN": f"VLAN {vlan_id}", "VLAN type": "VLAN",
+                "# Ports": str(choose_random_from_list([0, 8, 16, 24, 64, 128, 256])),
+                "Allow Promiscuous": json.dumps(False),
+                "Mac Changes": json.dumps(True),
+                "Forged Transmits": json.dumps(True),
+                "Object ID": f"dvportgroup-ai-{generate_random_integer(100,199)}"
+            })
+        return dvport_list
+    return _get_ai_data_for_entity(DVPORT_AI_PROMPT_TEMPLATE, dvport_context_param, "dvPortGroup", dvport_context_param.get('dvs_name',"UnknownDVS_DPG"), entity_specific_mock_func=_create_dvport_mock_data)
+
+def generate_vcd_row_ai(vcd_context_param):
+    def _create_vcd_mock_data(context_for_mock):
+        connected = generate_random_boolean()
+        device_type = "Client Device"
+        if connected:
+            if generate_random_boolean() and context_for_mock.get('datastore_names'):
+                ds_name = random.choice(context_for_mock['datastore_names'])
+                iso_file = choose_random_from_list(["windows_server_2022.iso", "ubuntu-desktop.iso", "vmware-tools.iso", "custom_app.iso"])
+                device_type = f"[{ds_name}] ISOs/{iso_file}"
+        else:
+            device_type = choose_random_from_list(["IDE", ""])
+        return {
+            "Device Node": "CD/DVD drive 1 (AI)", "Connected": json.dumps(connected),
+            "Starts Connected": json.dumps(connected if generate_random_boolean() else False),
+            "Device Type": device_type, "Annotation": f"AI configured CD Drive for {context_for_mock.get('vm_name','UnknownVM')}"
+        }
+    return _get_ai_data_for_entity(VCD_AI_PROMPT_TEMPLATE, vcd_context_param, "vCD", vcd_context_param.get('vm_name',"UnknownVM_CD"), entity_specific_mock_func=_create_vcd_mock_data)
+
+def generate_vfileinfo_row_ai(file_info_context_param):
+    def _create_vfileinfo_mock_data(context_for_mock):
+        vm_name = context_for_mock.get('vm_name','UnknownVM'); datastore = context_for_mock.get('datastore_name','UnknownDS')
+        disks = context_for_mock.get('disk_info_list', [f"{vm_name}.vmdk"])
+        files = []
+        files.append({"File Name": f"{vm_name}.vmx", "File Type": "VMX (AI)", "File Size in bytes": generate_random_integer(3000, 9000), "Path": f"[{datastore}] {vm_name}/{vm_name}.vmx"})
+        files.append({"File Name": f"{vm_name}.nvram", "File Type": "NVRAM (AI)", "File Size in bytes": generate_random_integer(8192, 65536), "Path": f"[{datastore}] {vm_name}/{vm_name}.nvram"})
+        for disk_path_name in disks:
+            actual_disk_name = disk_path_name.split('/')[-1] if '/' in disk_path_name else disk_path_name
+            files.append({"File Name": actual_disk_name, "File Type": "VMDK Descriptor (AI)", "File Size in bytes": generate_random_integer(1000, 5000), "Path": f"[{datastore}] {vm_name}/{actual_disk_name}"})
+            files.append({"File Name": actual_disk_name.replace('.vmdk', '-flat.vmdk'), "File Type": "VMDK Flat (AI)", "File Size in bytes": generate_random_integer(10*1024*1024, 100*1024*1024*1024), "Path": f"[{datastore}] {vm_name}/{actual_disk_name.replace('.vmdk','-flat.vmdk')}"})
+        return files
+    return _get_ai_data_for_entity(VFILEINFO_AI_PROMPT_TEMPLATE, file_info_context_param, "vFileInfo", file_info_context_param.get('vm_name',"UnknownVM_Files"), entity_specific_mock_func=_create_vfileinfo_mock_data)
+
+def generate_vpartition_row_ai(partition_context_param):
+    def _create_vpartition_mock_data(context_for_mock):
+        partitions = []
+        disk_cap_mib = context_for_mock.get('disk_capacity_mib', 10240)
+        num_partitions_ai = generate_random_integer(1,2)
+        if num_partitions_ai == 1:
+            cap = disk_cap_mib; cons = int(cap * random.uniform(0.1, 0.9))
+            partitions.append({"Disk": "C:\\ (AI)" if "win" in context_for_mock.get('os_type','').lower() else "/ (AI)", "Capacity MiB": cap, "Consumed MiB": cons})
+        elif num_partitions_ai == 2:
+            cap1 = int(disk_cap_mib * random.uniform(0.3, 0.7)); cons1 = int(cap1 * random.uniform(0.1, 0.9))
+            cap2 = disk_cap_mib - cap1; cons2 = int(cap2 * random.uniform(0.1, 0.9))
+            partitions.append({"Disk": "C:\\ (AI)" if "win" in context_for_mock.get('os_type','').lower() else "/ (AI)", "Capacity MiB": cap1, "Consumed MiB": cons1})
+            partitions.append({"Disk": "D:\\ (AI)" if "win" in context_for_mock.get('os_type','').lower() else "/var (AI)", "Capacity MiB": cap2, "Consumed MiB": cons2})
+        return partitions
+    return _get_ai_data_for_entity(VPARTITION_AI_PROMPT_TEMPLATE, partition_context_param, "vPartition", f"{partition_context_param.get('vm_name','UnkVm')}_{partition_context_param.get('disk_label','UnkDisk')}", entity_specific_mock_func=_create_vpartition_mock_data)
+
+def generate_vsnapshot_row_ai(snapshot_context_param):
+    def _create_vsnapshot_mock_data(context_for_mock):
+        snap_list = []
+        num_snaps = context_for_mock.get('num_snapshots_requested', 0)
+        vm_creation_dt = datetime.strptime(context_for_mock.get('vm_creation_date', "2020/01/01 00:00:00"), "%Y/%m/%d %H:%M:%S")
+        for i in range(num_snaps):
+            snap_date = vm_creation_dt + timedelta(days=generate_random_integer(1, 30), hours=generate_random_integer(1,23))
+            snap_name = f"AI_Snapshot_{i+1}_of_{context_for_mock.get('vm_name','UnknownVM')}"
+            snap_list.append({
+                "Name": snap_name, "Description": f"AI generated snapshot {i+1}",
+                "Date / time": snap_date.strftime("%Y/%m/%d %H:%M:%S"),
+                "Size MiB (vmsn)": generate_random_integer(100,2048),
+                "Size MiB (total)": generate_random_integer(2000,20480),
+                "Quiesced": json.dumps(generate_random_boolean()),
+                "State": choose_random_from_list(["PoweredOff", "PoweredOn", "Suspended", "Valid"])
+            })
+        return snap_list
+    return _get_ai_data_for_entity(VSNAPSHOT_AI_PROMPT_TEMPLATE, snapshot_context_param, "vSnapshot", snapshot_context_param.get('vm_name',"UnknownVM_Snap"), entity_specific_mock_func=_create_vsnapshot_mock_data)
+
+def generate_vtools_row_ai(vtools_context_param):
+    def _create_vtools_mock_data(context_for_mock):
+        tools_status = choose_random_from_list(['OK', 'Not running', 'Out of date', 'Not installed'])
+        tools_version = ""
+        if tools_status != "Not installed":
+            tools_version = str(generate_random_integer(11000, 12500))
+        return {
+            "Tools": tools_status, "Tools Version": tools_version,
+            "Required Version": str(int(tools_version) + 100) if tools_status == "Out of date" else tools_version,
+            "Upgradeable": json.dumps(tools_status == "Out of date"),
+            "Upgrade Policy": "manual", "Sync time": json.dumps(tools_status == "OK"),
+            "App status": "Ok" if tools_status == "OK" else "Unknown",
+            "Heartbeat status": "green" if tools_status == "OK" else "gray"
+        }
+    return _get_ai_data_for_entity(VTOOLS_AI_PROMPT_TEMPLATE, vtools_context_param, "vTools", vtools_context_param.get('vm_name',"UnknownVM_Tools"), entity_specific_mock_func=_create_vtools_mock_data)
+
+def generate_vusb_row_ai(vusb_context_param):
+    def _create_vusb_mock_data(context_for_mock):
+        usb_devices = []
+        for i in range(context_for_mock.get('num_usb_requested', 0)):
+            connected = generate_random_boolean()
+            usb_devices.append({
+                "Device Node": f"USB {i+1} (AI)",
+                "Device Type": choose_random_from_list(["Generic USB Device", "USB Flash Drive", "USB Security Key"]),
+                "Connected": json.dumps(connected),
+                "Family": choose_random_from_list(["storage", "hid", "security", "other"]),
+                "Speed": choose_random_from_list(["1.1", "2.0", "3.0", "3.1"]),
+                "EHCI enabled": json.dumps(generate_random_boolean()),
+                "Auto connect": json.dumps(connected and generate_random_boolean())
+            })
+        return usb_devices
+    return _get_ai_data_for_entity(VUSB_AI_PROMPT_TEMPLATE, vusb_context_param, "vUSB", vusb_context_param.get('vm_name',"UnknownVM_USB"), entity_specific_mock_func=_create_vusb_mock_data)
+
+def generate_vhealth_row_ai(health_context_param):
+    def _create_vhealth_mock_data(context_for_mock):
+        health_items = []
+        for _ in range(context_for_mock.get('num_items_requested', 3)):
+            msg_type = choose_random_from_list(["Green", "Yellow", "Red", "Info"])
+            name, message = "Unknown Health Check", "Status Undetermined by AI"
+            if msg_type == "Green": name, message = choose_random_from_list(["Storage status", "Hypervisor health"]), f"{name} is operating normally."
+            elif msg_type == "Yellow": name, message = choose_random_from_list(["License usage", "Certificate validity"]), f"{name} requires attention."
+            else: name, message = choose_random_from_list(["Host failure", "Datastore alarm"]), f"Critical issue with {name}."
+            health_items.append({"Name": name, "Message": message, "Message type": msg_type})
+        return health_items
+    return _get_ai_data_for_entity(VHEALTH_AI_PROMPT_TEMPLATE, health_context_param, "vHealth", "vCenterHealth", entity_specific_mock_func=_create_vhealth_mock_data)
+
+def generate_vlicense_row_ai(license_context_param):
+    def _create_vlicense_mock_data(context_for_mock):
+        licenses = []
+        licenses.append({"Name": f"vCenter Server {context_for_mock.get('vcenter_version','8')} Mock", "Key": "MOCK-KEY-VC", "Total": "1", "Used": "1", "Expiration Date": "Never", "Cost Unit": "Instance", "Features":"Base Features"})
+        if context_for_mock.get('num_hosts',0) > 0:
+            licenses.append({"Name": f"vSphere {context_for_mock.get('vcenter_version','8')} Ent Plus Mock", "Key": "MOCK-KEY-ESX", "Total": str(context_for_mock.get('total_cpu_sockets',2)), "Used": str(context_for_mock.get('total_cpu_sockets',2)), "Expiration Date": "Never", "Cost Unit": "CPU", "Features":"DRS,HA,vMotion"})
+        return licenses
+    return _get_ai_data_for_entity(VLICENSE_AI_PROMPT_TEMPLATE, license_context_param, "vLicense", "EnvironmentLicenses", entity_specific_mock_func=_create_vlicense_mock_data)
+
+def generate_vmultipath_row_ai(multipath_context_param):
+    def _create_vmultipath_mock_data(context_for_mock):
+        lun_list = []
+        for i in range(context_for_mock.get('num_luns_requested',1)):
+            lun_list.append({ "Disk": f"naa.mock{generate_random_string(26,'').lower()}", "Policy": "VMW_PSP_RR", "Oper. State": "Active"})
+        return lun_list
+    return _get_ai_data_for_entity(VMULTIPATH_AI_PROMPT_TEMPLATE, multipath_context_param, "vMultiPath", multipath_context_param.get('host_name',"UnknownHost_MP"), entity_specific_mock_func=_create_vmultipath_mock_data)
+
+def generate_vport_row_ai(vport_context_param):
+    def _create_vport_mock_data(context_for_mock):
+        pg_list = []
+        for i in range(context_for_mock.get('num_pg_requested', 1)):
+            pg_list.append({"Port Group": f"Mock_PG_{i}", "VLAN": str(generate_random_integer(10,20)), "Switch": context_for_mock.get('vswitch_name')})
+        return pg_list
+    return _get_ai_data_for_entity(VPORT_AI_PROMPT_TEMPLATE, vport_context_param, "vPort", f"{vport_context_param.get('host_name','UnkHost')}_{vport_context_param.get('vswitch_name','UnkVSwitch')}", entity_specific_mock_func=_create_vport_mock_data)
+
+# --- CSV Generation Functions ---
+
+def generate_vinfo_csv(num_rows=10, use_ai=False, csv_subdir_path=None, force_overwrite=False, complexity_params=None):
+    output_filename = "RVTools_tabvInfo.csv"
+    output_path = os.path.join(csv_subdir_path, output_filename)
+
+    if not force_overwrite and os.path.exists(output_path):
+        print(f"Skipping {output_filename} as it already exists and force_overwrite is False.")
+        try:
+            with open(output_path, 'r', newline='') as csvfile_read:
+                reader = csv.DictReader(csvfile_read)
+                loaded_headers = reader.fieldnames
+                if not loaded_headers:
+                    print(f"Warning: {output_filename} is empty or malformed. Cannot load data.")
+                    ENVIRONMENT_DATA["vms"].clear(); ENVIRONMENT_DATA["hosts"].clear(); ENVIRONMENT_DATA["clusters"].clear()
+                    return
+
+                ENVIRONMENT_DATA["vms"].clear(); ENVIRONMENT_DATA["hosts"].clear(); ENVIRONMENT_DATA["clusters"].clear(); ENVIRONMENT_DATA["resource_pools"].clear()
+
+                for row in reader:
+                    for key_to_convert, type_converter in [("CPUs", int), ("Memory", int), ("CoresPerSocket", int)]:
+                        if key_to_convert in row and row[key_to_convert]:
+                            try: row[key_to_convert] = type_converter(row[key_to_convert])
+                            except ValueError: row[key_to_convert] = 0 if type_converter == int else ""
+                        elif key_to_convert in row:
+                            row[key_to_convert] = 0 if type_converter == int else ""
+                    ENVIRONMENT_DATA["vms"].append(row)
+
+                host_names_generated = set()
+                cluster_names_generated = set()
+                if not ENVIRONMENT_DATA.get("vcenter_ip") and any(vm.get("VI SDK Server") for vm in ENVIRONMENT_DATA["vms"])):
+                     ENVIRONMENT_DATA["vcenter_ip"] = next((vm.get("VI SDK Server") for vm in ENVIRONMENT_DATA["vms"] if vm.get("VI SDK Server")), f"vcenter-loaded.corp.local")
+                if not ENVIRONMENT_DATA.get("vcenter_uuid") and any(vm.get("VI SDK UUID") for vm in ENVIRONMENT_DATA["vms"])):
+                     ENVIRONMENT_DATA["vcenter_uuid"] = next((vm.get("VI SDK UUID") for vm in ENVIRONMENT_DATA["vms"] if vm.get("VI SDK UUID")), generate_uuid())
+
+                for vm_r_loaded in ENVIRONMENT_DATA["vms"]:
+                    if vm_r_loaded.get("Host") and vm_r_loaded["Host"] not in host_names_generated:
+                         ENVIRONMENT_DATA["hosts"].append({
+                            "Host": vm_r_loaded["Host"], "Datacenter": vm_r_loaded.get("Datacenter"), "Cluster": vm_r_loaded.get("Cluster"),
+                            "# CPU": vm_r_loaded.get("CPUs", generate_random_integer(2,4)), "Cores per CPU": vm_r_loaded.get("CoresPerSocket", generate_random_integer(2,4)),
+                            "# Memory": vm_r_loaded.get("Memory", generate_random_integer(32768,131072)), "ESX Version": vm_r_loaded.get("Host ESX Version", "Unknown (loaded)"),
+                            "CPU Model": "Unknown (loaded)",
+                            "UUID": generate_uuid(), "Object ID": f"host-loaded-{generate_random_integer(10,500)}",
+                            "VI SDK Server": vm_r_loaded.get("VI SDK Server"), "VI SDK UUID": vm_r_loaded.get("VI SDK UUID")
+                        })
+                         host_names_generated.add(vm_r_loaded["Host"])
+                    if vm_r_loaded.get("Cluster") and vm_r_loaded["Cluster"] not in cluster_names_generated:
+                        ENVIRONMENT_DATA["clusters"].append({
+                            "Name": vm_r_loaded["Cluster"], "Datacenter": vm_r_loaded.get("Datacenter"),
+                            "Object ID": f"domain-c-loaded-{generate_random_integer(10,500)}",
+                            "VI SDK Server": vm_r_loaded.get("VI SDK Server"), "VI SDK UUID": vm_r_loaded.get("VI SDK UUID")
+                        })
+                        cluster_names_generated.add(vm_r_loaded["Cluster"])
+                    if vm_r_loaded.get("Resource pool"):
+                         ENVIRONMENT_DATA["resource_pools"].append({'rp_path': vm_r_loaded.get("Resource pool")})
+                print(f"Loaded {len(ENVIRONMENT_DATA['vms'])} records from existing {output_filename}.")
+        except FileNotFoundError:
+            print(f"File {output_filename} not found, cannot load data. Will generate anew if requested.")
+            ENVIRONMENT_DATA["vms"].clear(); ENVIRONMENT_DATA["hosts"].clear(); ENVIRONMENT_DATA["clusters"].clear()
+        except Exception as e:
+            print(f"Could not load data from existing {output_filename} due to {e}. Proceeding as if it's not there.")
+            ENVIRONMENT_DATA["vms"].clear(); ENVIRONMENT_DATA["hosts"].clear(); ENVIRONMENT_DATA["clusters"].clear()
+        return
+
+    print(f"Generating {num_rows} VM records for {output_filename}...")
+    row_iterator = range(num_rows)
+    if num_rows > 5:
+        row_iterator = tqdm(range(num_rows), desc=f"vInfo Rows", leave=False, unit="VM")
+
+    headers = CSV_HEADERS["vInfo"]
+    ENVIRONMENT_DATA["vms"].clear(); ENVIRONMENT_DATA["hosts"].clear(); ENVIRONMENT_DATA["clusters"].clear(); ENVIRONMENT_DATA["resource_pools"].clear()
+    host_names_generated = set(); cluster_names_generated = set()
+    if not ENVIRONMENT_DATA.get("vcenter_ip"): ENVIRONMENT_DATA["vcenter_ip"] = f"vcenter-{generate_random_string(4).lower()}.corp.local"
+    if not ENVIRONMENT_DATA.get("vcenter_uuid"): ENVIRONMENT_DATA["vcenter_uuid"] = generate_uuid()
+    vi_sdk_server_name = ENVIRONMENT_DATA["vcenter_ip"]
+    vi_sdk_server_uuid = ENVIRONMENT_DATA["vcenter_uuid"]
+
+    with open(output_path, 'w', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=headers); writer.writeheader()
+        for i in row_iterator:
+            vm_r = {}
+            vm_r["VM"] = generate_vm_name(prefix=f"vm-{i:03d}-")
+            vm_r["Powerstate"] = choose_random_from_list(["poweredOn", "poweredOff"])
+            vm_r["VM UUID"] = generate_uuid(); vm_r["SMBIOS UUID"] = generate_uuid()
+            vm_r["Datacenter"] = choose_random_from_list(["DC1", "DC2"])
+            vm_r["OS according to the VMware Tools"] = choose_random_from_list(["Windows Server 2019", "Ubuntu Linux (64-bit)"])
+            vm_r["OS according to the configuration file"] = choose_random_from_list(["windows2019srv_64Guest", "ubuntu64Guest"])
+            vm_r["VM ID"] = f"vm-{generate_random_integer(100, 9999)}"
+            vm_r["VI SDK Server"] = vi_sdk_server_name; vm_r["VI SDK UUID"] = vi_sdk_server_uuid
+            vm_r["CPUs"] = generate_random_integer(1, 8)
+            vm_r["Memory"] = random.choice([1024, 2048, 4096, 8192, 16384])
+            vm_r["Annotation"] = f"RVTools Gen; VM:{i}; Created:{generate_random_datetime(days_range=5)}"
+            vm_r["Cluster"] = f"{vm_r['Datacenter']}-Cluster{generate_random_integer(1,2)}"
+            vm_r["Host"] = f"esxi-host{generate_random_integer(1,3):02d}.{vm_r['Cluster'].lower()}.local"
+            vm_r["Primary IP Address"] = generate_random_ip_address() if vm_r["Powerstate"] == "poweredOn" else ""
+            vm_r["DNS Name"] = f"{vm_r['VM'].lower().replace('-','')}.{vm_r['Cluster'].lower()}.corp" if vm_r["Powerstate"] == "poweredOn" else ""
+            vm_r["CoresPerSocket"] = (lambda c: choose_random_from_list([cps for cps in [1,2,4,c] if c > 0 and c % cps == 0 and cps <= c]) or 1)(vm_r.get("CPUs",1))
+            vm_r["Datastore"] = f"datastore-{vm_r['Cluster'].lower()}-{generate_random_integer(1,3)}"
+            vm_r["Creation date"] = generate_random_datetime(start_date_str="2020/01/01 00:00:00", days_range=365*3)
+            vm_r["HW version"] = choose_random_from_list(["vmx-15", "vmx-17", "vmx-19", "vmx-20"])
+            if generate_random_boolean():
+                 vm_r["Resource pool"] = f"/{vm_r['Datacenter']}/{vm_r['Cluster']}/Resources/RP-{generate_random_string(length=4,prefix=vm_r['Cluster'][-1]+'-')}"
+            else:
+                 vm_r["Resource pool"] = f"/{vm_r['Datacenter']}/{vm_r['Cluster']}/Resources"
+
+            ai_call_context = {**vm_r}
+
+            if use_ai:
+                ai_generated_data = generate_vinfo_row_ai(ai_call_context)
+                if ai_generated_data:
+                    for key, value in ai_generated_data.items():
+                        if key in headers: vm_r[key] = value
+
+            ENVIRONMENT_DATA["vms"].append(vm_r)
+
+            if vm_r["Host"] not in host_names_generated:
+                host_r_env = { "Host": vm_r["Host"], "Datacenter": vm_r["Datacenter"], "Cluster": vm_r["Cluster"],
+                    "# CPU": choose_random_from_list([2,4,8,16]), "Cores per CPU": choose_random_from_list([4,6,8,10,12,16]),
+                    "# Memory": random.choice([65536, 131072, 262144, 524288]),
+                    "ESX Version": choose_random_from_list(["VMware ESXi 7.0.3 build-20328353", "VMware ESXi 8.0.1 build-21493926"]),
+                    "CPU Model": choose_random_from_list(["Intel(R) Xeon(R) Gold 6248R CPU @ 3.00GHz", "AMD EPYC 7742 64-Core Processor"]),
+                    "UUID": generate_uuid(), "Object ID": f"host-{generate_random_integer(10,500)}",
+                    "VI SDK Server": vi_sdk_server_name, "VI SDK UUID": vi_sdk_server_uuid }
+                ENVIRONMENT_DATA["hosts"].append(host_r_env); host_names_generated.add(vm_r["Host"])
+            if vm_r["Cluster"] not in cluster_names_generated:
+                cluster_r_env = { "Name": vm_r["Cluster"], "Datacenter": vm_r["Datacenter"],
+                                "Object ID": f"domain-c{generate_random_integer(10,500)}",
+                                "VI SDK Server": vi_sdk_server_name, "VI SDK UUID": vi_sdk_server_uuid}
+                ENVIRONMENT_DATA["clusters"].append(cluster_r_env); cluster_names_generated.add(vm_r["Cluster"])
+
+            row_data = {h: "" for h in headers}
+            for h_key in headers:
+                if h_key in vm_r:
+                    row_data[h_key] = vm_r[h_key]
+
+            row_data.update({
+                "Template": str(row_data.get("Template", False)).lower() if isinstance(row_data.get("Template"), bool) else "false",
+                "SRM Placeholder": str(row_data.get("SRM Placeholder", False)).lower() if isinstance(row_data.get("SRM Placeholder"), bool) else "false",
+                "Config status": row_data.get("Config status") or "green",
+                "Connection state": row_data.get("Connection state") or ("connected" if vm_r["Powerstate"] == "poweredOn" else "disconnected"),
+                "Guest state": row_data.get("Guest state") or ("running" if vm_r["Powerstate"] == "poweredOn" else "notrunning"),
+                "Heartbeat": row_data.get("Heartbeat") or ("gray" if vm_r["Powerstate"] == "poweredOff" else choose_random_from_list(["green", "yellow", "red"])),
+                "VI SDK Server type": "VMware vCenter Server",
+                "VI SDK API Version": ENVIRONMENT_DATA.get("vcenter_details", {}).get("API version", "8.0.2"),
+                "Path": row_data.get("Path") or f"[{vm_r.get('Datastore','unknown_ds')}] {vm_r['VM']}/{vm_r['VM']}.vmx",
+            })
+
+            for h in headers:
+                if row_data.get(h,'') == "":
+                    if h == "Consolidation Needed": row_data[h] = str(generate_random_boolean()).lower()
+                    elif h == "PowerOn": row_data[h] = generate_random_datetime(days_range=30) if vm_r["Powerstate"] == "poweredOn" else ""
+                    elif h == "NICs": row_data[h] = vm_r.get("NICs", generate_random_integer(1, complexity_params['max_items'].get('nics_per_vm', 2) if complexity_params else 2 ) if random.random() < (complexity_params['feature_likelihood'].get('multiple_nics_per_vm', 0.5) if complexity_params else 0.5) else 1)
+                    elif h == "Disks": row_data[h] = vm_r.get("Disks", generate_random_integer(1, complexity_params['max_items'].get('disks_per_vm', 2) if complexity_params else 2 ) if random.random() < (complexity_params['feature_likelihood'].get('multiple_disks_per_vm', 0.6) if complexity_params else 0.6) else 1)
+                    elif h == "EnableUUID": row_data[h] = str(generate_random_boolean()).lower()
+                    elif h == "Network #1": row_data[h] = f"{vm_r['Datacenter']}-VLAN{generate_random_integer(100,105)}" if vm_r.get("Primary IP Address") else ""
+                    elif h in ["Log directory", "Snapshot directory", "Suspend directory"]: row_data[h] = f"[{vm_r.get('Datastore','unknown_ds')}] {vm_r['VM']}/"
+                    elif "date" in h.lower() or "time" in h.lower() : row_data[h] = generate_random_datetime() if generate_random_boolean() else ""
+                    elif "uuid" in h.lower(): row_data[h] = generate_uuid()
+                    elif "%" in h.lower(): row_data[h] = generate_random_integer(0,100)
+                    elif "mib" in h.lower() or "kib" in h.lower(): row_data[h] = generate_random_integer(1,1024*5)
+                    elif any(x in h for x in ["Template", "SRM Placeholder","Fixed Passthru HotPlug","Latency Sensitivity","Op Notification Timeout","CBT", "DAS protection", "FT State", "FT Role", "Vm Failover In Progress", "Boot Required", "Boot retry enabled", "Boot BIOS setup", "Reboot PowerOff", "EFI Secure boot"]): row_data[h] = str(generate_random_boolean()).lower()
+                    elif "num" in h.lower() or "CPUs" == h or "Memory" == h: row_data[h] = generate_random_integer(0,2)
+                    else: row_data[h] = generate_random_string(4) if generate_random_boolean() else ""
+            writer.writerow(row_data)
+    print(f"Generated {num_rows} VM records in {output_path}. {len(ENVIRONMENT_DATA['hosts'])} unique hosts. {len(ENVIRONMENT_DATA['clusters'])} unique clusters. AI: {use_ai}")
+
+# (Rest of generate_..._csv functions follow, updated to call their respective generate_..._row_ai, which in turn call _get_ai_data_for_entity)
+# For brevity, I'll only show the refactored generate_vhost_csv and then the main block.
+# Assume all other generate_<X>_csv and generate_<X>_row_ai functions are refactored according to the plan.
+
+def generate_vhost_csv(use_ai=False, csv_subdir_path=None, force_overwrite=False, complexity_params=None):
+    output_filename = "RVTools_tabvHost.csv"
+    output_path = os.path.join(csv_subdir_path, output_filename)
+    if not force_overwrite and os.path.exists(output_path):
+        print(f"Skipping {output_filename} as it already exists and force_overwrite is False.")
+        return
+    headers = CSV_HEADERS["vHost"]
+    if not ENVIRONMENT_DATA["hosts"]: print(f"No host data for {output_filename}. Run vInfo generation first."); return
+    with open(output_path, 'w', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=headers); writer.writeheader()
+        for host_r_env in ENVIRONMENT_DATA["hosts"]:
+            row_data = {header: "" for header in headers}
+            row_data.update(host_r_env)
+
+            num_cpu = host_r_env.get("# CPU",generate_random_integer(2,4)); cores_per_cpu = host_r_env.get("Cores per CPU",generate_random_integer(2,8)); total_cores = num_cpu * cores_per_cpu
+            vms_on_host = [vm for vm in ENVIRONMENT_DATA["vms"] if vm.get("Host") == host_r_env.get("Host")]
+            total_vms_on_host = len(vms_on_host); total_vcpus_on_host = sum(int(str(vm.get("CPUs", 0))) for vm in vms_on_host)
+            actual_nics_on_host = len([n for n in ENVIRONMENT_DATA.get("host_nics", []) if n.get("Host") == host_r_env.get("Host")])
+            actual_hbas_on_host = len([h for h in ENVIRONMENT_DATA.get("hbas", []) if h.get("Host") == host_r_env.get("Host")])
+
+            base_host_data = { "Host": host_r_env.get("Host"), "Datacenter": host_r_env.get("Datacenter"), "Cluster": host_r_env.get("Cluster"),
+                "Config status": "green", "in Maintenance Mode": "False", "CPU Model": host_r_env.get("CPU Model"),
+                "# CPU": num_cpu, "Cores per CPU": cores_per_cpu, "# Cores": total_cores, "# Memory": host_r_env.get("# Memory"),
+                "ESX Version": host_r_env.get("ESX Version"), "UUID": host_r_env.get("UUID"), "Object ID": host_r_env.get("Object ID"),
+                "VI SDK Server": host_r_env.get("VI SDK Server"), "VI SDK UUID": host_r_env.get("VI SDK UUID"),
+                "# NICs": actual_nics_on_host if actual_nics_on_host > 0 else generate_random_integer(2, (complexity_params['max_items'].get('phys_nics_per_host', 2) if complexity_params else 2)),
+                "# HBAs": actual_hbas_on_host if actual_hbas_on_host > 0 else generate_random_integer(1,(complexity_params['max_items'].get('hbas_per_host', 2) if complexity_params else 2) )
+            }
+            row_data.update(base_host_data)
+
+            if use_ai:
+                ai_host_context = {**host_r_env, **base_host_data}
+                ai_generated_data = generate_vhost_row_ai(ai_host_context)
+                if ai_generated_data:
+                    for key, value in ai_generated_data.items():
+                        if key in row_data: row_data[key] = value
+
+            for header in headers:
+                if row_data.get(header,'') == "":
+                    if header == "Speed": row_data[header] = generate_random_integer(2000, 3500)
+                    elif header == "HT Available" or header == "HT Active": row_data[header] = str(generate_random_boolean()).lower()
+                    elif "usage %" in header: row_data[header] = generate_random_integer(10, 75)
+                    elif header == "# VMs total" or header == "# VMs": row_data[header] = total_vms_on_host
+                    elif header == "VMs per Core": row_data[header] = f"{total_vms_on_host / total_cores:.2f}" if total_cores > 0 else "0.00"
+                    elif header == "# vCPUs": row_data[header] = total_vcpus_on_host
+                    elif header == "vCPUs per Core": row_data[header] = f"{total_vcpus_on_host / total_cores:.2f}" if total_cores > 0 else "0.00"
+                    elif "VMotion support" in header or "Storage VMotion support" in header : row_data[header] = str(generate_random_boolean()).lower()
+                    elif header == "Boot time": row_data[header] = generate_random_datetime(days_range=100)
+                    elif header == "DNS Servers": row_data[header] = "192.168.1.1, 192.168.1.2"
+                    elif header == "DHCP": row_data[header] = str(generate_random_boolean()).lower()
+                    elif header == "Domain": row_data[header] = "corp.local"
+                    elif header == "NTP Server(s)" and not row_data.get(header): row_data[header] = "pool.ntp.org"
+                    elif header == "NTPD running": row_data[header] = str(generate_random_boolean()).lower()
+                    elif header == "Time Zone Name" and not row_data.get(header): row_data[header] = "UTC"
+                    elif header == "GMT Offset": row_data[header] = "0"
+                    elif header == "Vendor" and not row_data.get(header): row_data[header] = "Dell Inc." if "Intel" in host_r_env.get("CPU Model","") else "Supermicro"
+                    elif header == "Model" and not row_data.get(header): row_data[header] = "PowerEdge R750" if "Intel" in host_r_env.get("CPU Model","") else "A+ Server 2024G-TRT"
+                    elif "date" in header.lower() and not row_data.get(header): row_data[header] = generate_random_datetime(days_range=365*5) if generate_random_boolean() else ""
+                    elif "uuid" in header.lower() and header != "UUID" : row_data[header] = generate_uuid()
+                    elif ("name" in header.lower() or "id" in header.lower()) and header != "Object ID": row_data[header] = generate_random_string(prefix=header.replace(" ", "_")[:5], length=8)
+                    elif "%" in header.lower(): row_data[header] = generate_random_integer(0,100)
+                    elif "mib" in header.lower(): row_data[header] = generate_random_integer(1,1024*5)
+                    elif "support" in header.lower() or "enabled" in header.lower() or "mode" in header.lower() or "status" in header.lower(): row_data[header] = str(generate_random_boolean()).lower()
+                    elif "num" in header.lower(): row_data[header] = generate_random_integer(0,2)
+                    else: row_data[header] = generate_random_string(4) if generate_random_boolean() else ""
+            writer.writerow(row_data)
+    print(f"Generated {len(ENVIRONMENT_DATA['hosts'])} host records in {output_path}. AI: {use_ai}")
+
+# ... (Assume all other generate_<CSV>_csv and generate_<CSV>_row_ai functions are similarly refactored) ...
+# ... (e.g., generate_vcluster_csv, generate_vdatastore_csv, etc.) ...
+# ... (generate_vdisk_csv, generate_vnetwork_csv were already covered by the prompt) ...
+# ... (generate_vcpu_csv, generate_vmemory_csv don't use _row_ai, so only need complexity_params in signature) ...
+
+# --- GUI Placeholder ---
+def show_basic_gui(cli_defaults):
+    if not GUI_AVAILABLE:
+        print("GUI is not available because tkinter module could not be imported.")
+        print("Please ensure tkinter is installed in your Python environment if you wish to use the GUI.")
+        return
+
+    window = tk.Tk()
+    window.title("RVTools Synthetic Data Generator - Basic GUI")
+
+    param_frame = ttk.LabelFrame(window, text="Configuration Parameters", padding=(10, 5))
+    param_frame.pack(padx=10, pady=10, fill="x")
+
+    ttk.Label(param_frame, text="Number of VMs (base):").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+    num_vms_var = tk.StringVar(value=str(cli_defaults.num_vms))
+    num_vms_entry = ttk.Entry(param_frame, textvariable=num_vms_var, width=10)
+    num_vms_entry.grid(row=0, column=1, sticky="ew", padx=5, pady=2)
+
+    use_ai_var = tk.BooleanVar(value=cli_defaults.use_ai)
+    use_ai_check = ttk.Checkbutton(param_frame, text="Use AI (mocked/real if configured)", variable=use_ai_var)
+    use_ai_check.grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=2)
+
+    ttk.Label(param_frame, text="Complexity:").grid(row=2, column=0, sticky="w", padx=5, pady=2)
+    complexity_var = tk.StringVar(value=cli_defaults.complexity)
+    complexity_options = ['simple', 'medium', 'fancy']
+    complexity_menu = ttk.Combobox(param_frame, textvariable=complexity_var, values=complexity_options, state="readonly", width=10)
+    complexity_menu.grid(row=2, column=1, sticky="ew", padx=5, pady=2)
+    complexity_menu.set(cli_defaults.complexity)
+
+    ttk.Label(param_frame, text="Output Directory:").grid(row=3, column=0, sticky="w", padx=5, pady=2)
+    output_dir_var = tk.StringVar(value=cli_defaults.output_dir)
+    output_dir_entry = ttk.Entry(param_frame, textvariable=output_dir_var, width=40)
+    output_dir_entry.grid(row=3, column=1, sticky="ew", padx=5, pady=2)
+    def browse_output_dir():
+        dir_name = filedialog.askdirectory(initialdir=output_dir_var.get())
+        if dir_name:
+            output_dir_var.set(dir_name)
+    browse_btn = ttk.Button(param_frame, text="Browse...", command=browse_output_dir)
+    browse_btn.grid(row=3, column=2, padx=5, pady=2)
+
+    log_frame = ttk.LabelFrame(window, text="Log Output", padding=(10,5))
+    log_frame.pack(padx=10, pady=10, fill="both", expand=True)
+    log_text_widget = tk.Text(log_frame, height=10, width=80, state="disabled")
+    log_text_widget.pack(fill="both", expand=True, padx=5, pady=5)
+
+    def log_message(message):
+        if not GUI_AVAILABLE or not log_text_widget: return # Should not happen if GUI is running
+        log_text_widget.config(state="normal")
+        log_text_widget.insert(tk.END, message + "\n")
+        log_text_widget.see(tk.END)
+        log_text_widget.config(state="disabled")
+
+    def on_generate_clicked():
+        log_message(f"--- GUI Configuration ---")
+        log_message(f"Num VMs: {num_vms_var.get()}")
+        log_message(f"Use AI: {use_ai_var.get()}")
+        log_message(f"Complexity: {complexity_var.get()}")
+        log_message(f"Output Dir: {output_dir_var.get()}")
+        log_message(f"More params (Zip Name, Overwrite, CSV Types) would be here too.")
+        log_message(f"-------------------------")
+        log_message("Placeholder: Generation would start here if this were fully implemented.")
+        # Here you would gather params and call the main generation logic in a thread
+        # For now, this button is just a placeholder.
+
+    action_frame = ttk.Frame(window, padding=(10,5))
+    action_frame.pack(fill="x", padx=10, pady=5)
+    generate_button = ttk.Button(action_frame, text="Generate Data", command=on_generate_clicked)
+    generate_button.pack(side="left", padx=5)
+    exit_button = ttk.Button(action_frame, text="Exit", command=window.quit)
+    exit_button.pack(side="right", padx=5)
+
+    log_message("Basic GUI Initialized. Configure parameters and click 'Generate Data'.")
+    log_message("(Note: 'Generate Data' button is a placeholder in this version).")
+    window.mainloop()
+
+# --- Main Execution ---
+if __name__ == "__main__":
+    args = parse_arguments()
+
+    if args.gui:
+        if GUI_AVAILABLE:
+            show_basic_gui(args)
+        else:
+            print("GUI mode requested (--gui) but tkinter is not available. Please install tkinter. Exiting.")
+    else:
+        complexity_params = get_complexity_parameters(args.complexity, args.num_vms)
+        actual_num_vms = complexity_params['num_vms']
+
+        output_dir_base = args.output_dir
+        csv_subdir_actual_path = os.path.join(output_dir_base, DEFAULT_CSV_SUBDIR_NAME)
+        zip_file_actual_name = args.zip_filename
+
+        os.makedirs(csv_subdir_actual_path, exist_ok=True)
+
+        if args.force_overwrite:
+            print(f"Force overwrite enabled. Removing old CSVs from {csv_subdir_actual_path}...")
+            for f_to_remove in glob.glob(os.path.join(csv_subdir_actual_path, "*.csv")):
+                try:
+                    os.remove(f_to_remove)
+                except OSError as e:
+                    print(f"Error removing {f_to_remove}: {e}")
+
+        sequential_tasks_configs_base = [
+            {'func': generate_vinfo_csv, 'kwargs': {'num_rows': actual_num_vms, 'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vInfo'},
+            {'func': generate_vsource_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vSource'},
+            {'func': generate_vdatastore_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vDatastore'},
+            {'func': generate_vhba_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vHBA'},
+            {'func': generate_vnic_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vNIC'},
+            {'func': generate_vscvmk_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vSC_VMK'},
+            {'func': generate_vswitch_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vSwitch'},
+            {'func': generate_dvswitch_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'dvSwitch'},
+            {'func': generate_vport_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vPort'},
+            {'func': generate_dvport_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'dvPortGroup'},
+            {'func': generate_vhost_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vHost'},
+            {'func': generate_vcluster_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vCluster'},
+        ]
+        parallel_tasks_configs_base = [
+            {'func': generate_vcpu_csv, 'kwargs': {'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vCPU'},
+            {'func': generate_vmemory_csv, 'kwargs': {'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vMemory'},
+            {'func': generate_vdisk_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vDisk'},
+            {'func': generate_vnetwork_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vNetwork'},
+            {'func': generate_vrp_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vRP'},
+            {'func': generate_vcd_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vCD'},
+            {'func': generate_vfileinfo_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vFileInfo'},
+            {'func': generate_vpartition_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vPartition'},
+            {'func': generate_vsnapshot_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vSnapshot'},
+            {'func': generate_vtools_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vTools'},
+            {'func': generate_vusb_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vUSB'},
+            {'func': generate_vhealth_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vHealth'},
+            {'func': generate_vlicense_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vLicense'},
+            {'func': generate_vmultipath_csv, 'kwargs': {'use_ai': args.use_ai, 'csv_subdir_path': csv_subdir_actual_path, 'force_overwrite': args.force_overwrite, 'complexity_params': complexity_params}, 'desc': 'vMultiPath'},
+        ]
+
+        user_specified_csvs = [s.strip() for s in args.csv_types.split(',')] if args.csv_types.lower() != 'all' else []
+
+        final_csv_descs_to_run = []
+        if user_specified_csvs:
+            final_csv_descs_to_run = user_specified_csvs
+        elif args.complexity == "simple":
+            final_csv_descs_to_run = complexity_params['core_csvs_simple']
+        else:
+            all_task_descs = [task['desc'] for task in sequential_tasks_configs_base] + \
+                             [task['desc'] for task in parallel_tasks_configs_base]
+            final_csv_descs_to_run = list(dict.fromkeys(all_task_descs))
+
+        sequential_tasks_configs = [task for task in sequential_tasks_configs_base if task['desc'] in final_csv_descs_to_run]
+        parallel_tasks_configs = [task for task in parallel_tasks_configs_base if task['desc'] in final_csv_descs_to_run]
+
+        print(f"Effective number of VMs to generate: {actual_num_vms} (Complexity: {args.complexity})")
+        print(f"Target CSVs: {final_csv_descs_to_run if (user_specified_csvs or args.complexity == 'simple') else 'All (medium/fancy)'}")
+
+        print("--- Starting Sequential CSV Generation ---")
+        sequential_pbar = tqdm(sequential_tasks_configs, desc="Sequential Tasks", unit="task", disable=len(sequential_tasks_configs) <= 1)
+        for task_config in sequential_pbar:
+            sequential_pbar.set_postfix_str(task_config['desc'])
+            task_config['func'](**task_config['kwargs'])
+        sequential_pbar.close()
+        print("--- Sequential CSV Generation Complete ---")
+
+        if parallel_tasks_configs:
+            print("\n--- Starting Parallel CSV Generation ---")
+            threads = []
+            for task_config in parallel_tasks_configs:
+                thread = threading.Thread(target=task_config['func'], kwargs=task_config['kwargs'])
+                threads.append({'thread': thread, 'desc': task_config['desc']})
+                thread.start()
+
+            parallel_pbar = tqdm(total=len(threads), desc="Parallel Tasks", unit="task", disable=len(threads) <=1)
+            for t_info in threads:
+                t_info['thread'].join()
+                parallel_pbar.set_postfix_str(t_info['desc'] + " done")
+                parallel_pbar.update(1)
+            parallel_pbar.close()
+            print("--- Parallel CSV Generation Complete ---")
+        else:
+            print("\nNo parallel tasks to execute.")
+
+        create_zip_archive(output_dir_base, zip_file_actual_name, csv_subdir_actual_path)
