@@ -1,0 +1,39 @@
+# sample_config.yaml
+global_settings:
+  default_ai_provider: "mock"
+  datacenter_prefix: "TestDC"
+
+datacenters:
+  - name: "MainDC" # Will become TestDCMainDC if prefix is used by generator
+    num_clusters: 1
+
+cluster_profiles:
+  - name: "DefaultClusterProfile"
+    hosts_per_cluster: 1
+    vsan_enabled_for_associated_datastores: false
+
+host_hardware_profiles:
+  - name: "DefaultHostHardware"
+    cpu_sockets: 1
+    cores_per_socket: 2
+    memory_mib: 8192 # 8GB
+    esx_version_pattern: "8.0 build-*"
+
+vm_profiles:
+  - profile_name: "tiny-test-vm"
+    os_type: "otherGuest"
+    os_description_for_tools: "Other Guest OS"
+    total_vcpus: 1
+    memory_mib: 1024 # 1GB
+    disks:
+      - label: "OSDisk"
+        size_mib: 10240 # 10GB
+        thin_provisioned: true
+    nics:
+      - network_assignment_hint: "TestNetwork"
+
+deployment_plan:
+  - target_cluster_profile: "DefaultClusterProfile" # Assumes one cluster of this type will be created in MainDC
+    vm_deployments:
+      - vm_profile_name: "tiny-test-vm"
+        count: 2 # Generate 2 VMs of this type
