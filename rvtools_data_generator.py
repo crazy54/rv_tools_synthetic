@@ -13,14 +13,11 @@ import threading
 import argparse
 import json # For AI prompt context and parsing responses
 import sys # Added for main() refactor
+import logging # Added for logging
+import concurrent.futures # Added for ThreadPoolExecutor
 
 # Attempt to import GUI and AI libraries, but make them optional
-try:
-    import tkinter as tk
-    from tkinter import filedialog, messagebox, ttk
-    GUI_AVAILABLE = True
-except ImportError:
-    GUI_AVAILABLE = False
+# GUI_AVAILABLE flag and tkinter imports are removed as NiceGUI is replacing it.
 
 try:
     import openai
@@ -48,14 +45,20 @@ try:
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     LANGCHAIN_AVAILABLE = False
-    # print("Langchain or langchain_openai not found. Real AI calls via LangChain will be disabled.")
+    # logging.info("Langchain or langchain_openai not found. Real AI calls via LangChain will be disabled.") # logger not configured yet
 
 try:
     from langchain_community.chat_models import ChatOllama # For Ollama
     LANGCHAIN_OLLAMA_AVAILABLE = True
 except ImportError:
     LANGCHAIN_OLLAMA_AVAILABLE = False # Separate flag for Ollama parts
-    # print("langchain_community.chat_models not found. Ollama support via LangChain will be disabled.")
+    # logging.info("langchain_community.chat_models not found. Ollama support via LangChain will be disabled.")
+
+try:
+    from nicegui import ui, app # app might be needed for storage or lifecycle
+    NICEGUI_AVAILABLE = True
+except ImportError:
+    NICEGUI_AVAILABLE = False
 
 # --- Global Configuration & Constants ---
 LOGO = """
@@ -424,14 +427,13 @@ def get_sdk_server_info(context_sdk_server_name=None, context_sdk_uuid=None):
 # --- AI Integration ---
 def _call_mock_ai(prompt_template, context, relevant_headers_key, entity_name_for_log, entity_specific_mock_func=None):
     """Simulates an AI call by using a dedicated mock data generation function."""
-    # print(f"Mock AI call for {entity_name_for_log} with context: {context}")
+    # logging.debug(f"Mock AI call for {entity_name_for_log} with context: {context}")
     if entity_specific_mock_func:
         try:
             return entity_specific_mock_func(context)
         except Exception as e:
-            print(f"Error in entity-specific mock function for {entity_name_for_log}: {e}")
-            return {"error": str(e), "Annotation": f"Error in mock {entity_name_for_log}"} # Ensure Annotation is present
-    # Fallback if no specific mock function
+            logging.error(f"Error in entity-specific mock function for {entity_name_for_log}: {e}") # Was print
+            return {"error": str(e), "Annotation": f"Error in mock {entity_name_for_log}"}
     return {"Annotation": f"Mock AI data for {entity_name_for_log}", "VM Name": context.get("vm_name_hint", "MockVM")}
 
 
@@ -449,7 +451,7 @@ def _get_ai_data_for_entity(prompt_template, context, relevant_headers_key, enti
 
         if ai_provider == "openai":
             if not openai_api_key:
-                print(f"Warning: OpenAI provider selected but OPENAI_API_KEY not found. Falling back to mock for {entity_name_for_log}.")
+                logging.warning(f"OpenAI provider selected but OPENAI_API_KEY not found. Falling back to mock for {entity_name_for_log}.")
                 return entity_specific_mock_func(context) if entity_specific_mock_func else _call_mock_ai(prompt_template, context, relevant_headers_key, entity_name_for_log)
             llm_provider = ChatOpenAI(
                 model_name=ENVIRONMENT_DATA["config"].get("ai_model", "gpt-4o-mini"),
@@ -459,14 +461,14 @@ def _get_ai_data_for_entity(prompt_template, context, relevant_headers_key, enti
             provider_name_for_log = "OpenAI"
         elif ai_provider == "ollama":
             if not LANGCHAIN_OLLAMA_AVAILABLE:
-                print(f"Warning: Ollama provider selected but LangChain Ollama libraries not found. Falling back to mock for {entity_name_for_log}.")
+                logging.warning(f"Ollama provider selected but LangChain Ollama libraries not found. Falling back to mock for {entity_name_for_log}.")
                 return entity_specific_mock_func(context) if entity_specific_mock_func else _call_mock_ai(prompt_template, context, relevant_headers_key, entity_name_for_log)
-            print(f"Using Ollama model: {ollama_model_name_arg}. Ensure Ollama server is running and model is pulled.")
+            logging.info(f"Using Ollama model: {ollama_model_name_arg}. Ensure Ollama server is running and model is pulled.")
             llm_provider = ChatOllama(model=ollama_model_name_arg)
             provider_name_for_log = "Ollama"
 
         if llm_provider:
-            print(f"\nAttempting REAL AI call via LangChain ({provider_name_for_log}) for {entity_name_for_log} ({relevant_headers_key})...")
+            logging.info(f"Attempting REAL AI call via LangChain ({provider_name_for_log}) for {entity_name_for_log} ({relevant_headers_key})...")
             try:
                 output_parser = JsonOutputParser()
                 system_template_str = "You are an AI assistant. Your primary goal is to generate synthetic data based on user context. You MUST output a single, valid JSON object containing only the requested fields and no other text, explanations, or markdown formatting."
@@ -485,7 +487,7 @@ def _get_ai_data_for_entity(prompt_template, context, relevant_headers_key, enti
                 chat_prompt_template = ChatPromptTemplate.from_messages([system_message_prompt, human_message_prompt])
                 chain = chat_prompt_template | llm_provider | output_parser
                 ai_data = chain.invoke(context)
-                print(f"LangChain {provider_name_for_log} response for {entity_name_for_log} (parsed): {str(ai_data)[:200]}...")
+                logging.debug(f"LangChain {provider_name_for_log} response for {entity_name_for_log} (raw): {str(ai_data)[:500]}") # Log more raw data at debug
 
                 # Validation logic
                 if relevant_headers_key == "vInfo":
@@ -515,25 +517,27 @@ def _get_ai_data_for_entity(prompt_template, context, relevant_headers_key, enti
 
                 return ai_data
             except OutputParserException as ope:
-                print(f"LangChain OutputParserException ({provider_name_for_log}) for {entity_name_for_log}: {ope}")
+                logging.error(f"LangChain OutputParserException ({provider_name_for_log}) for {entity_name_for_log}: {ope}. Response from AI may have been: {ope.llm_output if hasattr(ope, 'llm_output') else 'N/A'}")
             except Exception as e:
-                print(f"Error during LangChain {provider_name_for_log} API call for {entity_name_for_log}: {e}")
-            print(f"Falling back to mock data for {entity_name_for_log} due to LangChain/{ai_provider} error.")
+                logging.exception(f"Error during LangChain {provider_name_for_log} API call for {entity_name_for_log}: {e}") # Use .exception for stack trace
+            logging.warning(f"Falling back to mock data for {entity_name_for_log} due to LangChain/{ai_provider} error.")
             # Fall through to mock if any error in try block
 
     # Fallback logic for all other cases (e.g., AI disabled, provider is mock, or errors above)
-    if use_ai_enabled_globally and ai_provider != "mock": # If AI was intended but conditions above weren't met or failed
+    # This section now primarily handles cases where AI was intended but prerequisites weren't met,
+    # or if it's a type not handled by the main AI block.
+    if use_ai_enabled_globally and ai_provider != "mock" and not llm_provider: # llm_provider would be None if not set in the main AI block
         if not LANGCHAIN_AVAILABLE:
-            print(f"LangChain libraries not found. Falling back to mock for {entity_name_for_log}.")
-        elif ai_provider == "openai" and not openai_api_key: # Already handled, but as a safeguard
-             print(f"OpenAI API key not found. Falling back to mock for {entity_name_for_log}.")
-        elif ai_provider == "ollama" and not LANGCHAIN_OLLAMA_AVAILABLE: # Already handled
-             print(f"LangChain Ollama libraries not found. Falling back to mock for {entity_name_for_log}.")
+            logging.warning(f"LangChain libraries not found. Falling back to mock for {entity_name_for_log}.")
+        # Specific provider issues already logged above if llm_provider wasn't set.
         elif relevant_headers_key not in ["vInfo", "vHost", "vDisk", "vNetwork", "vCluster", "vDatastore"]:
-             print(f"Real AI ({ai_provider}) not enabled for {relevant_headers_key}. Falling back to mock.")
-        # else: the specific error was already printed in the try-except blocks
+             logging.info(f"Real AI ({ai_provider}) not enabled for {relevant_headers_key}. Falling back to mock for {entity_name_for_log}.")
+        # else: The error was related to OpenAI/Ollama setup and already logged.
 
+    # If after all checks, we are here, it means either AI was not enabled for this entity,
+    # or it was enabled but failed and fell through.
     if entity_specific_mock_func:
+        logging.debug(f"Using entity-specific mock function for {entity_name_for_log} (Provider: {ai_provider})")
         return entity_specific_mock_func(context)
 
     return {"Annotation": f"Generic mock AI data for {entity_name_for_log}", "Name": context.get("vm_name_hint") or context.get("host_name_hint","GenericMockEntity")}
@@ -559,11 +563,10 @@ def write_csv(data, filename_prefix, headers, output_dir_override=None, csv_subd
             elif isinstance(data, list) and data and isinstance(data[0], list): # list of lists
                  writer.writerows(data)
             else:
-                print(f"Warning: Data for {filepath} is not in expected list format or is empty.")
-        # print(f"Successfully generated {filepath}")
+                logging.warning(f"Data for {filepath} is not in expected list format or is empty.")
+        logging.info(f"Successfully generated {filepath}")
     except Exception as e:
-        print(f"Error writing CSV {filepath}: {e}")
-
+        logging.exception(f"Error writing CSV {filepath}: {e}")
 
 # --- Individual CSV Data Generation Functions ---
 
@@ -589,8 +592,8 @@ def _create_vinfo_mock_data(context):
 
 def generate_vinfo_row_ai(vm_name_hint, context_for_ai, use_ai_cli_flag, ai_provider_cli_arg, profile_data=None):
     """Generates a single vInfo row, potentially using AI."""
-    context_for_ai["vm_name_hint"] = vm_name_hint # Add the desired VM name to the context for the AI
-    context_for_ai["headers"] = CSV_HEADERS["vInfo"] # Provide headers for context
+    context_for_ai["vm_name_hint"] = vm_name_hint
+    context_for_ai["headers"] = CSV_HEADERS["vInfo"]
     context_for_ai["profile_os_hints"] = profile_data.get("os_options") if profile_data else None
     context_for_ai["profile_vcpu"] = profile_data.get("vcpu") if profile_data else None
     context_for_ai["profile_memory_mb"] = profile_data.get("memory_mb") if profile_data else None
@@ -603,7 +606,7 @@ def generate_vinfo_row_ai(vm_name_hint, context_for_ai, use_ai_cli_flag, ai_prov
         f"vInfo for {vm_name_hint}",
         use_ai_enabled_globally=use_ai_cli_flag,
         ai_provider=ai_provider_cli_arg,
-        ollama_model_name_arg=context_for_ai.get('ollama_model_name_cli_arg', 'llama3'), # New
+        ollama_model_name_arg=context_for_ai.get('ollama_model_name_cli_arg', 'llama3'),
         entity_specific_mock_func=_create_vinfo_mock_data
     )
     return ai_generated_data
@@ -612,11 +615,10 @@ def generate_vinfo_row_ai(vm_name_hint, context_for_ai, use_ai_cli_flag, ai_prov
 def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_params, use_ai_cli_flag, ai_provider_cli_arg, ollama_model_name="llama3", scenario_config=None):
     """Generates data for vInfo CSV, populating ENVIRONMENT_DATA."""
     data = []
-    vms_generated_for_env = [] # Temp list for ENVIRONMENT_DATA["vms"]
+    vms_generated_for_env = []
 
-    # Scenario-driven generation
     if scenario_config and scenario_config.get('datacenters'):
-        print("Generating vInfo based on scenario config...")
+        logging.info("Generating vInfo based on scenario config...")
         vm_scenario_index = 0
         for dc_conf in scenario_config.get('datacenters', []):
             dc_name = dc_conf.get('name', generate_datacenter_name())
@@ -624,12 +626,11 @@ def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_param
             ENVIRONMENT_DATA["datacenters"].append(dc_rec)
 
             for cl_prof_name, cl_details in dc_conf.get('cluster_profiles', {}).items():
-                cl_name = f"{dc_name}-{cl_prof_name}" # e.g., DC1-ComputeHeavy
+                cl_name = f"{dc_name}-{cl_prof_name}"
                 cl_rec = {"name": cl_name, "datacenter": dc_name, "hosts": [], "vms": [], "resource_pools": [], "sdk_server": sdk_server_name, "sdk_uuid": base_sdk_uuid}
                 dc_rec["clusters"].append(cl_name)
                 ENVIRONMENT_DATA["clusters"].append(cl_rec)
 
-                # Create default resource pool for cluster
                 default_rp_name = generate_resource_pool_name(cl_name, "Resources")
                 rp_rec = {"name": default_rp_name, "cluster": cl_name, "datacenter": dc_name, "sdk_server": sdk_server_name, "sdk_uuid": base_sdk_uuid}
                 ENVIRONMENT_DATA["resource_pools"].append(rp_rec)
@@ -648,14 +649,13 @@ def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_param
                         "sdk_server": sdk_server_name, "sdk_uuid": base_sdk_uuid,
                         "profile_num_physical_nics": host_hardware_profile.get('num_physical_nics', 4),
                         "profile_nic_speed_gbps": host_hardware_profile.get('nic_speed_gbps', 10),
-                        "profile_hba_type_preference": host_hardware_profile.get('hba_type_preference'), # Added
-                        "profile_num_hbas": host_hardware_profile.get('num_hbas') # Added
+                        "profile_hba_type_preference": host_hardware_profile.get('hba_type_preference'),
+                        "profile_num_hbas": host_hardware_profile.get('num_hbas')
                     }
                     dc_rec["hosts"].append(host_name)
                     cl_rec["hosts"].append(host_name)
                     ENVIRONMENT_DATA["hosts"].append(host_rec)
 
-                    # Create local datastore for this host from scenario or default
                     local_ds_name = generate_datastore_name(host_name=host_name, ds_type="local", ds_idx=1)
                     local_ds_capacity = host_hardware_profile.get('local_storage_gb', 500) * 1024
                     local_ds_ssd = host_hardware_profile.get('local_storage_ssd', True)
@@ -666,13 +666,11 @@ def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_param
                     host_rec["datastores_local"].append(local_ds_name)
                     dc_rec["datastores"].append(local_ds_name)
 
-
-            # VM Deployment Plan
             for vm_depl_plan in dc_conf.get('deployment_plan', []):
                 vm_prof_name = vm_depl_plan.get('profile_name')
                 vm_profile = scenario_config.get('vm_profiles', {}).get(vm_prof_name, {})
                 count = vm_depl_plan.get('count', 1)
-                target_cluster_prof_name = vm_depl_plan.get('target_cluster_profile', list(dc_conf['cluster_profiles'].keys())[0]) # Default to first cluster profile
+                target_cluster_prof_name = vm_depl_plan.get('target_cluster_profile', list(dc_conf['cluster_profiles'].keys())[0])
 
                 for _ in range(count):
                     vm_name = generate_vm_name(profile_vm_name_prefix=vm_profile.get('name_prefix', 'vm'), scenario_vm_index=vm_scenario_index)
@@ -682,22 +680,18 @@ def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_param
                     assigned_host_name = assigned_host_rec.get("name", "N/A_Host_Scenario")
                     assigned_cluster_name = assigned_host_rec.get("cluster", f"{dc_name}-{target_cluster_prof_name}")
 
-                    # Folder (simple for now, could be part of profile)
                     folder_name = generate_folder_name(base=vm_profile.get('folder_base', "VMs"))
                     if not any(f.get("name") == folder_name and f.get("datacenter") == dc_name for f in ENVIRONMENT_DATA.get("folders",[])):
                         ENVIRONMENT_DATA.setdefault("folders", []).append({"name": folder_name, "datacenter": dc_name})
 
-                    # Resource Pool (use cluster's default for now)
                     rp_name = generate_resource_pool_name(assigned_cluster_name, "Resources")
 
-
-                    # AI or Mock data generation for this VM
                     vm_context = {
                         "sdk_server_name": sdk_server_name, "base_sdk_uuid": base_sdk_uuid,
                         "assigned_host_name": assigned_host_name, "assigned_cluster_name": assigned_cluster_name,
                         "assigned_datacenter_name": dc_name, "folder_name": folder_name, "rp_name": rp_name,
                         "vm_profile_name": vm_prof_name,
-                        "use_ai_cli_flag": use_ai_cli_flag, # Pass through CLI flags
+                        "use_ai_cli_flag": use_ai_cli_flag,
                         "ai_provider_cli_arg": ai_provider_cli_arg,
                         "ollama_model_name_cli_arg": ollama_model_name
                     }
@@ -725,15 +719,14 @@ def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_param
                         "VI SDK UUID": base_sdk_uuid,
                         "VM UUID": generate_uuid(prefix=vm_profile.get('uuid_prefix', '')),
                         "VM Version": random.choice(["vSphere vCenter 8.0", "vSphere vCenter 7.0 U3"]),
-                        "NICs": len(vm_profile.get('nics', [{'adapter_type': 'VMXNET3'}])), # Count based on profile
-                        "Disks": len(vm_profile.get('disks', [{'size_gb': 50, 'thin_provisioned': True}])), # Count based on profile
+                        "NICs": len(vm_profile.get('nics', [{'adapter_type': 'VMXNET3'}])),
+                        "Disks": len(vm_profile.get('disks', [{'size_gb': 50, 'thin_provisioned': True}])),
                         "Creation date": generate_random_date("2021-01-01", "2023-06-01"),
                         "VM Folder Path": f"/{dc_name}/vm/{folder_name}/",
                         "VM Guest ID": ai_data.get("OS according to VMWare", "").lower().replace(" ", "-")
                     })
                     data.append([row.get(header, "") for header in CSV_HEADERS["vInfo"]])
 
-                    # Store for ENVIRONMENT_DATA
                     vm_rec_env = {
                         "name": row["VM Name"], "uuid": row["VM UUID"], "power_state": row["Powerstate"],
                         "is_template": row["Template"], "host": row["Host"], "cluster": row["Cluster"],
@@ -742,20 +735,17 @@ def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_param
                         "num_cpu": row["vCPU"], "memory_mb": row["Memory MB"], "num_nics": row["NICs"], "num_disks": row["Disks"],
                         "provisioned_mb": row["Provisioned MB"], "in_use_mb": row["In Use MB"],
                         "sdk_server": sdk_server_name, "sdk_uuid": base_sdk_uuid,
-                        "profile_nics": vm_profile.get('nics'), # Store NIC profile for vNetwork
-                        "profile_disks": vm_profile.get('disks'), # Store Disk profile for vDisk
-                        "profile_feature_likelihoods": vm_profile.get('feature_likelihoods', {}) # For snapshots, etc.
+                        "profile_nics": vm_profile.get('nics'),
+                        "profile_disks": vm_profile.get('disks'),
+                        "profile_feature_likelihoods": vm_profile.get('feature_likelihoods', {})
                     }
                     vms_generated_for_env.append(vm_rec_env)
-                    assigned_host_rec["vms_on_host"].append(vm_name)
+                    if assigned_host_rec: assigned_host_rec["vms_on_host"].append(vm_name) # Check if assigned_host_rec exists
                     cl_rec["vms"].append(vm_name)
                     dc_rec["vms"].append(vm_name)
 
     else: # Random generation if no scenario
-        print(f"Generating {num_vms} vInfo entries randomly...")
-        # Simplified random generation - needs fleshing out similar to scenario but without profiles
-        # For now, this path will be minimal if scenario is the primary focus.
-        # Create a default DC and Cluster if they don't exist from a scenario
+        logging.info(f"Generating {num_vms} vInfo entries randomly...")
         if not ENVIRONMENT_DATA.get("datacenters"):
             dc_name = generate_datacenter_name()
             ENVIRONMENT_DATA["datacenters"].append({"name": dc_name, "clusters": [], "hosts": [], "datastores": [], "networks": [], "vms": [], "sdk_server": sdk_server_name, "sdk_uuid": base_sdk_uuid})
@@ -763,7 +753,6 @@ def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_param
             cl_name = generate_cluster_name(dc_prefix=ENVIRONMENT_DATA["datacenters"][0]["name"])
             ENVIRONMENT_DATA["clusters"].append({"name": cl_name, "datacenter": ENVIRONMENT_DATA["datacenters"][0]["name"], "hosts": [], "vms": [], "resource_pools": [], "sdk_server": sdk_server_name, "sdk_uuid": base_sdk_uuid})
             ENVIRONMENT_DATA["datacenters"][0]["clusters"].append(cl_name)
-            # Default RP for this cluster
             default_rp_name = generate_resource_pool_name(cl_name, "Resources")
             ENVIRONMENT_DATA["resource_pools"].append({"name": default_rp_name, "cluster": cl_name, "datacenter": ENVIRONMENT_DATA["datacenters"][0]["name"], "sdk_server": sdk_server_name, "sdk_uuid": base_sdk_uuid})
 
@@ -775,7 +764,6 @@ def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_param
                 ENVIRONMENT_DATA["hosts"].append(host_rec)
                 ENVIRONMENT_DATA["clusters"][0]["hosts"].append(host_name)
                 ENVIRONMENT_DATA["datacenters"][0]["hosts"].append(host_name)
-                # Add local datastore
                 ds_name = generate_datastore_name(host_name=host_name, ds_type="local")
                 ENVIRONMENT_DATA["datastores"].append({"name": ds_name, "type": "VMFS", "capacity_mb": generate_random_integer(200000,1000000), "free_mb_percent":0.3, "is_local":True, "hosts_connected":[host_name], "datacenter": host_rec["datacenter"], "sdk_server": sdk_server_name, "sdk_uuid": base_sdk_uuid})
                 host_rec["datastores_local"].append(ds_name)
@@ -784,11 +772,10 @@ def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_param
         vm_iterator = tqdm(range(num_vms), desc="Generating vInfo (Random)") if TQDM_AVAILABLE else range(num_vms)
         for i in vm_iterator:
             vm_name = generate_vm_name()
-            # Simplified assignment for random VMs
             assigned_host_rec = choose_randomly_from_list(ENVIRONMENT_DATA["hosts"])
-            assigned_host_name = assigned_host_rec.get("name", "RandomHost")
-            assigned_cluster_name = assigned_host_rec.get("cluster", "RandomCluster")
-            assigned_datacenter_name = assigned_host_rec.get("datacenter", "RandomDC")
+            assigned_host_name = assigned_host_rec.get("name", "RandomHost") if assigned_host_rec else "FallbackHost"
+            assigned_cluster_name = assigned_host_rec.get("cluster", "RandomCluster") if assigned_host_rec else "FallbackCluster"
+            assigned_datacenter_name = assigned_host_rec.get("datacenter", "RandomDC") if assigned_host_rec else "FallbackDC"
             folder_name = generate_folder_name()
             if not any(f.get("name") == folder_name and f.get("datacenter") == assigned_datacenter_name for f in ENVIRONMENT_DATA.get("folders",[])):
                 ENVIRONMENT_DATA.setdefault("folders", []).append({"name": folder_name, "datacenter": assigned_datacenter_name})
@@ -799,11 +786,11 @@ def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_param
                 "sdk_server_name": sdk_server_name, "base_sdk_uuid": base_sdk_uuid,
                 "assigned_host_name": assigned_host_name, "assigned_cluster_name": assigned_cluster_name,
                 "assigned_datacenter_name": assigned_datacenter_name, "folder_name": folder_name, "rp_name": rp_name,
-                "use_ai_cli_flag": use_ai_cli_flag, # Pass through CLI flags
+                "use_ai_cli_flag": use_ai_cli_flag,
                 "ai_provider_cli_arg": ai_provider_cli_arg,
                 "ollama_model_name_cli_arg": ollama_model_name
             }
-            ai_data = generate_vinfo_row_ai(vm_name, vm_context, use_ai_cli_flag, ai_provider_cli_arg) # profile_data is None here
+            ai_data = generate_vinfo_row_ai(vm_name, vm_context, use_ai_cli_flag, ai_provider_cli_arg)
 
             row = {header: "" for header in CSV_HEADERS["vInfo"]}
             row.update({
@@ -830,9 +817,9 @@ def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_param
                 "VM Guest ID": ai_data.get("OS according to VMWare", "").lower().replace(" ", "-")
             })
             data.append([row.get(header, "") for header in CSV_HEADERS["vInfo"]])
-            # Store for ENVIRONMENT_DATA
-            vm_rec_env = {key.lower().replace(" ", "_"): val for key, val in row.items()} # Basic conversion
-            vm_rec_env.update({ # ensure specific keys are present
+
+            vm_rec_env = {key.lower().replace(" ", "_"): val for key, val in row.items()}
+            vm_rec_env.update({
                 "name": row["VM Name"], "uuid": row["VM UUID"], "power_state": row["Powerstate"],
                 "is_template": row["Template"], "host": row["Host"], "cluster": row["Cluster"],
                 "datacenter": row["Datacenter"], "folder": row["Folder"], "resource_pool": row["Pool"],
@@ -842,12 +829,13 @@ def generate_vinfo_csv(num_vms, sdk_server_name, base_sdk_uuid, complexity_param
                 "sdk_server": sdk_server_name, "sdk_uuid": base_sdk_uuid
             })
             vms_generated_for_env.append(vm_rec_env)
-            if assigned_host_rec: # Check if a host was actually found/assigned
+            if assigned_host_rec:
                 assigned_host_rec.setdefault("vms_on_host", []).append(vm_name)
 
     ENVIRONMENT_DATA["vms"].extend(vms_generated_for_env)
     write_csv(data, "vInfo", CSV_HEADERS["vInfo"])
-    print(f"vInfo CSV generated with {len(data)} VMs. ENVIRONMENT_DATA updated.")
+
+
 
 # --- vDisk AI Row and Mock ---
 def _create_vdisk_mock_data(context):
@@ -896,7 +884,9 @@ def generate_vdisk_row_ai(vm_r_context_for_ai, disk_index, disk_label, datastore
     return ai_generated_data
 
 def generate_vdisk_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    if not ENVIRONMENT_DATA.get("vms"): return
+    if not ENVIRONMENT_DATA.get("vms"):
+        logging.warning("No VM data found in ENVIRONMENT_DATA. Skipping vDisk CSV generation.")
+        return
     data = []
     vm_iterator = tqdm(ENVIRONMENT_DATA["vms"], desc="Generating vDisk") if TQDM_AVAILABLE else ENVIRONMENT_DATA["vms"]
 
@@ -926,7 +916,11 @@ def generate_vdisk_csv(complexity_params, scenario_config=None, use_ai_cli_flag=
                 ds_options = [ds_loc for ds_loc in assigned_host_rec.get("datastores_local", [])] if assigned_host_rec else []
                 shared_ds = [ds["name"] for ds in ENVIRONMENT_DATA.get("datastores", []) if not ds.get("is_local") and ds.get("datacenter") == vm_rec.get("datacenter")]
                 ds_options.extend(shared_ds)
-                if not ds_options: ds_options.append(generate_datastore_name(ds_type="fallback", ds_idx=vm_rec.get("uuid","vm")[:4]))
+                if not ds_options:
+                    new_ds_name = generate_datastore_name(ds_type="fallback", ds_idx=vm_rec.get("uuid","vm")[:4])
+                    logging.warning(f"No suitable datastore found for VM {vm_rec.get('name')}, disk {disk_label}. Creating fallback: {new_ds_name}")
+                    ENVIRONMENT_DATA.setdefault("datastores",[]).append({'name': new_ds_name, 'type':'VMFS', 'is_local':False, 'datacenter': vm_rec.get('datacenter')})
+                    ds_options.append(new_ds_name)
                 datastore_name = choose_randomly_from_list(ds_options, "Critical_Fallback_DS")
 
 
@@ -950,7 +944,7 @@ def generate_vdisk_csv(complexity_params, scenario_config=None, use_ai_cli_flag=
                 "Datastore": datastore_name # Ensure datastore name is consistent
             })
             data.append([current_row_dict.get(header, "") for header in CSV_HEADERS["vDisk"]])
-    write_csv(data, "vDisk", CSV_HEADERS["vDisk"])
+    write_csv(data, "vDisk", CSV_HEADERS["vDisk"]) # write_csv handles logging
 
 # --- vNetwork AI Row and Mock ---
 def _create_vnetwork_mock_data(context):
@@ -995,7 +989,9 @@ def generate_vnetwork_row_ai(vm_r_context_for_ai, nic_index, nic_label, nic_prof
     return ai_generated_data
 
 def generate_vnetwork_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    if not ENVIRONMENT_DATA.get("vms"): return
+    if not ENVIRONMENT_DATA.get("vms"):
+        logging.warning("No VM data found for vNetwork. Skipping vNetwork CSV generation.")
+        return
     data = []
     vm_iterator = tqdm(ENVIRONMENT_DATA["vms"], desc="Generating vNetwork") if TQDM_AVAILABLE else ENVIRONMENT_DATA["vms"]
 
@@ -1016,18 +1012,16 @@ def generate_vnetwork_csv(complexity_params, scenario_config=None, use_ai_cli_fl
             network_label_hint = nic_profile.get("network_label_hint", generate_network_name())
             adapter_type_hint = nic_profile.get("adapter_type", "VMXNET3")
 
-            # Logic to find/create network and switch (simplified for brevity, assume it sets determined_network_label and determined_switch_name)
-            # This existing logic that ensures network and switch are in ENVIRONMENT_DATA is crucial
-            # For example:
+            # Logic to find/create network and switch
             determined_network_label = network_label_hint
-            determined_switch_name = "SomeSwitch" # Placeholder - this needs to be properly determined as per existing logic
-            # (The full logic for creating/finding network and switch from the original function should be here)
-            # Start of existing logic to ensure network and switch
-            if not any(n["name"] == determined_network_label for n in ENVIRONMENT_DATA.get("networks", [])):
+            determined_switch_name = "DefaultSwitch" # Placeholder, will be updated by logic below
+
+            existing_network = next((n for n in ENVIRONMENT_DATA.get("networks", []) if n["name"] == determined_network_label), None)
+            if not existing_network:
                 is_dvs_profile = nic_profile.get("dvs_switch_name")
                 is_dvs_random = generate_random_boolean(complexity_params.get('dvs_likelihood',0.3))
                 network_type_final = "PortGroup"
-                if is_dvs_profile or (not is_dvs_profile is False and is_dvs_random):
+                if is_dvs_profile or (not isinstance(is_dvs_profile, bool) and is_dvs_random): # Check if not bool for safety
                     determined_switch_name = is_dvs_profile if is_dvs_profile else f"DVS_{vm_rec.get('datacenter', 'DC1')}"
                     network_type_final = "DVPortGroup"
                     if not any(dvs.get("name") == determined_switch_name for dvs in ENVIRONMENT_DATA.get("dvSwitches",[])):
@@ -1038,9 +1032,7 @@ def generate_vnetwork_csv(complexity_params, scenario_config=None, use_ai_cli_fl
                         ENVIRONMENT_DATA.setdefault("vswitches",[]).append({"name":determined_switch_name, "host":vm_rec.get('host'), "type":"Standard", "datacenter": vm_rec.get('datacenter')})
                 ENVIRONMENT_DATA.setdefault("networks", []).append({"name": determined_network_label, "type": network_type_final, "switch_name": determined_switch_name, "vlan_id": nic_profile.get("vlan_id", generate_random_integer(10,100)), "datacenter": vm_rec.get("datacenter"), "sdk_server": vm_rec.get("sdk_server"), "sdk_uuid": vm_rec.get("sdk_uuid")})
             else:
-                existing_net_rec = next((n for n in ENVIRONMENT_DATA["networks"] if n["name"] == determined_network_label), None)
-                determined_switch_name = existing_net_rec.get("switch_name", "UnknownSwitch") if existing_net_rec else "UnknownSwitch"
-            # End of existing logic to ensure network and switch
+                determined_switch_name = existing_network.get("switch_name", "UnknownSwitch")
 
             ai_nic_data = generate_vnetwork_row_ai(vm_r_context_for_ai, nic_idx_loop, nic_label, nic_profile)
 
@@ -1051,22 +1043,23 @@ def generate_vnetwork_csv(complexity_params, scenario_config=None, use_ai_cli_fl
                 "Cluster": vm_rec.get("cluster"), "Datacenter": vm_rec.get("datacenter"),
                 "VM UUID": vm_rec.get("uuid"), "VI SDK Server": vm_rec.get("sdk_server"),
                 "VI SDK UUID": vm_rec.get("sdk_uuid"),
-                # Fields from AI or mock
                 "Network adapter": ai_nic_data.get("Network adapter", nic_label),
                 "Connected": ai_nic_data.get("Connected", False),
                 "Status": ai_nic_data.get("Status", "Disconnected"),
                 "MAC Address": ai_nic_data.get("MAC Address", generate_mac_address()),
                 "IP Address": ai_nic_data.get("IP Address", ""),
                 "Network Label": ai_nic_data.get("Network Label", determined_network_label),
-                "Switch": determined_switch_name, # Use the determined switch name
+                "Switch": determined_switch_name,
                 "Adapter Type": ai_nic_data.get("Adapter Type", adapter_type_hint),
             })
             data.append([current_row_dict.get(header, "") for header in CSV_HEADERS["vNetwork"]])
-    write_csv(data, "vNetwork", CSV_HEADERS["vNetwork"])
+    write_csv(data, "vNetwork", CSV_HEADERS["vNetwork"]) # write_csv handles logging
 
 # --- vSnapshot (no AI path for now, just complexity/scenario) ---
-def generate_vsnapshot_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args for consistency
-    if not ENVIRONMENT_DATA.get("vms"): return
+def generate_vsnapshot_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"):
+    if not ENVIRONMENT_DATA.get("vms"):
+        logging.warning("No VM data found for vSnapshot. Skipping vSnapshot CSV generation.")
+        return
     data = []
     vm_iterator = tqdm(ENVIRONMENT_DATA["vms"], desc="Generating vSnapshot") if TQDM_AVAILABLE else ENVIRONMENT_DATA["vms"]
 
@@ -1101,7 +1094,7 @@ def generate_vsnapshot_csv(complexity_params, scenario_config=None, use_ai_cli_f
                 # if k == num_snapshots: row["Snapshot Is Current"] = True
 
                 data.append([row.get(header, "") for header in CSV_HEADERS["vSnapshot"]])
-    write_csv(data, "vSnapshot", CSV_HEADERS["vSnapshot"])
+    write_csv(data, "vSnapshot", CSV_HEADERS["vSnapshot"]) # write_csv handles logging
 
 # --- vCluster AI Row and Mock ---
 def _create_vcluster_mock_data(context):
@@ -1157,7 +1150,9 @@ def generate_vcluster_row_ai(cluster_r_context_for_ai):
     return ai_generated_data
 
 def generate_vcluster_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    if not ENVIRONMENT_DATA.get("clusters"): return
+    if not ENVIRONMENT_DATA.get("clusters"):
+        logging.warning("No cluster data found. Skipping vCluster CSV generation.")
+        return
     data = []
     cluster_iterator = tqdm(ENVIRONMENT_DATA["clusters"], desc="Generating vCluster") if TQDM_AVAILABLE else ENVIRONMENT_DATA["clusters"]
 
@@ -1255,7 +1250,9 @@ def generate_vdatastore_row_ai(ds_r_context_for_ai):
     return ai_generated_data
 
 def generate_vdatastore_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    if not ENVIRONMENT_DATA.get("datastores"): return
+    if not ENVIRONMENT_DATA.get("datastores"):
+        logging.warning("No datastore data found. Skipping vDatastore CSV generation.")
+        return
     data = []
     ds_iterator = tqdm(ENVIRONMENT_DATA["datastores"], desc="Generating vDatastore") if TQDM_AVAILABLE else ENVIRONMENT_DATA["datastores"]
 
@@ -1347,7 +1344,9 @@ def generate_vhost_row_ai(host_name_hint, context_for_ai, use_ai_cli_flag, ai_pr
     return ai_generated_data
 
 def generate_vhost_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"):
-    if not ENVIRONMENT_DATA.get("hosts"): return
+    if not ENVIRONMENT_DATA.get("hosts"):
+        logging.warning("No host data found. Skipping vHost CSV generation.")
+        return
     data = []
     host_iterator = tqdm(ENVIRONMENT_DATA["hosts"], desc="Generating vHost") if TQDM_AVAILABLE else ENVIRONMENT_DATA["hosts"]
 
@@ -1390,9 +1389,10 @@ def generate_vhost_csv(complexity_params, scenario_config=None, use_ai_cli_flag=
     write_csv(data, "vHost", CSV_HEADERS["vHost"])
 
 
-def generate_vcluster_csv(*args, **kwargs): pass # Placeholder
 def generate_vhba_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    if not ENVIRONMENT_DATA.get("hosts"): return
+    if not ENVIRONMENT_DATA.get("hosts"):
+        logging.warning("No host data found for vHBA. Skipping vHBA CSV generation.")
+        return
     data = []
     host_iterator = tqdm(ENVIRONMENT_DATA["hosts"], desc="Generating vHBA") if TQDM_AVAILABLE else ENVIRONMENT_DATA["hosts"]
 
@@ -1470,34 +1470,54 @@ def generate_vhba_csv(complexity_params, scenario_config=None, use_ai_cli_flag=F
     write_csv(data, "vHBA", CSV_HEADERS["vHBA"])
 
 
+def generate_vtools_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
+    logging.debug(f"Placeholder: vTools generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    pass
+
+def generate_vpartition_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
+    logging.debug(f"Placeholder: vPartition generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    pass
+
+def generate_vcd_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
+    logging.debug(f"Placeholder: vCD generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    pass
+
+def generate_vfloppy_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
+    logging.debug(f"Placeholder: vFloppy generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    pass
+
+def generate_vusb_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
+    logging.debug(f"Placeholder: vUSB generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    pass
+
 def generate_vnic_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vNIC generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vNIC generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_vswitch_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vSwitch generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vSwitch generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_vport_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vPort generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vPort generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_dvswitch_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: dvSwitch generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: dvSwitch generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_dvport_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: dvPort generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: dvPort generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 # generate_vdatastore_csv is already updated.
 
 def generate_vrp_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vRP generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vRP generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_vtag_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vTag generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vTag generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 
@@ -1522,7 +1542,16 @@ def parse_arguments(args_list=None): # Modified to accept args_list
     parser.add_argument("--csv_types", nargs='+', default=["all"], help="List of CSV types to generate (e.g., vInfo vDisk vHost). Default is all.")
     parser.add_argument("--complexity", choices=['simple', 'medium', 'fancy'], default='medium', help="Complexity level for data generation.")
     parser.add_argument("--config_file", type=str, default=None, help="Path to a YAML scenario configuration file.")
-    parser.add_argument("--gui", action="store_true", help="Launch the basic Tkinter GUI.")
+    # --gui argument removed
+    parser.add_argument(
+        "--log_level", type=str, default="INFO",
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        help="Set the logging verbosity level. Default: INFO"
+    )
+    parser.add_argument(
+        "--web_gui", action="store_true",
+        help="Launch the NiceGUI Web UI for configuration instead of running via CLI."
+    )
 
     if args_list is None:
         return parser.parse_args() # Parses sys.argv[1:]
@@ -1566,7 +1595,7 @@ def get_complexity_parameters(level, base_num_vms_from_cli_or_scenario):
 
 def load_scenario_config(config_file_path):
     if not YAML_AVAILABLE:
-        print("Warning: YAML library not available, cannot load scenario config.")
+        logging.warning("YAML library not available, cannot load scenario config.")
         return None
     if not config_file_path:
         return None
@@ -1574,33 +1603,228 @@ def load_scenario_config(config_file_path):
         with open(config_file_path, 'r') as f:
             return yaml.safe_load(f)
     except FileNotFoundError:
-        print(f"Warning: Scenario config file not found: {config_file_path}")
+        logging.warning(f"Scenario config file not found: {config_file_path}")
     except Exception as e:
-        print(f"Error loading scenario config '{config_file_path}': {e}")
+        logging.exception(f"Error loading scenario config '{config_file_path}': {e}")
     return None
 
-# --- GUI ---
-def show_basic_gui(cli_defaults):
-    if not GUI_AVAILABLE:
-        print("GUI is not available. Please install tkinter.")
-        return None
-    print("GUI functionality is extensive and omitted in this restored version for brevity.")
-    print("Normally, this would launch a Tkinter window.")
-    return None
+# show_basic_gui() function is removed.
+
+def launch_nicegui_app(cli_args_for_defaults):
+    if not NICEGUI_AVAILABLE:
+        logging.error("NiceGUI library not found. Cannot launch Web GUI.")
+        logging.info("Please install it using: pip install nicegui")
+        return
+
+    ui_elements = {}
+    log_area = None
+
+    def construct_cli_args_from_gui():
+        args_list = []
+        if ui_elements['num_vms'].value is not None:
+             args_list.extend(["--num_vms", str(int(ui_elements['num_vms'].value))])
+
+        if ui_elements['use_ai'].value:
+            args_list.append("--use_ai")
+        args_list.extend(["--ai_provider", ui_elements['ai_provider'].value])
+
+        if ui_elements['ai_provider'].value == 'ollama':
+            args_list.extend(["--ollama_model_name", ui_elements['ollama_model_name'].value])
+        elif ui_elements['ai_provider'].value == 'openai':
+             args_list.extend(["--ai_model", ui_elements['openai_model_name'].value])
+
+        args_list.extend(["--complexity", ui_elements['complexity'].value])
+
+        if ui_elements['config_file'].value and ui_elements['config_file'].value.strip():
+            args_list.extend(["--config_file", ui_elements['config_file'].value.strip()])
+
+        args_list.extend(["--output_dir", ui_elements['output_dir'].value])
+        args_list.extend(["--zip_filename", ui_elements['zip_filename'].value])
+
+        if ui_elements['force_overwrite'].value:
+            args_list.append("--force_overwrite")
+
+        selected_csvs = ui_elements['csv_types'].value
+        if selected_csvs:
+            is_list = isinstance(selected_csvs, list)
+            all_keys_implicitly_selected = is_list and len(selected_csvs) == len(CSV_HEADERS.keys())
+
+            if not (("all" in selected_csvs if isinstance(selected_csvs, (list, str)) else False) or all_keys_implicitly_selected):
+                args_list.append("--csv_types")
+                if is_list:
+                    args_list.extend(selected_csvs)
+                else:
+                    args_list.append(selected_csvs)
+
+        args_list.extend(["--log_level", ui_elements['log_level'].value])
+        return args_list
+
+    def log_message_gui(message):
+        if log_area:
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            log_area.push(f"{timestamp} - GUI - {message}")
+        else:
+            logging.info(f"GUI_LOG_FALLBACK: {message}")
+
+
+    class NiceGuiLogHandler(logging.Handler):
+        def emit(self, record):
+            if log_area:
+                try:
+                    msg = self.format(record)
+                    async def do_update_log_area(): # NiceGUI needs async context for UI updates from handlers
+                        if ui.context.client.connected:
+                            log_area.push(msg)
+                        else:
+                            print(f"NICEGUI_LOG_HANDLER_FALLBACK_NO_CLIENT: {msg}")
+
+                    # Prefer ui.context.loop.call_soon_threadsafe for thread safety
+                    if ui.context.loop:
+                        ui.context.loop.call_soon_threadsafe(lambda: asyncio.ensure_future(do_update_log_area()))
+                    else: # Fallback if loop not available (e.g. during setup/teardown of test)
+                         print(f"NICEGUI_HANDLER_CONSOLE_FALLBACK_NO_LOOP: {msg}")
+
+                except Exception as e:
+                    print(f"Error in NiceGuiLogHandler.emit: {e}")
+                    pass
+
+    gui_log_handler = NiceGuiLogHandler()
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s", "%Y-%m-%d %H:%M:%S")
+    gui_log_handler.setFormatter(formatter)
+
+    def start_generation_thread():
+        generate_button.disable()
+        if log_area: log_area.clear()
+        log_message_gui("Constructing CLI arguments from GUI settings...")
+
+        cli_args_for_main_list = construct_cli_args_from_gui()
+        log_message_gui(f"CLI Arguments for main(): {cli_args_for_main_list}")
+
+        root_logger = logging.getLogger()
+        gui_log_level_str = ui_elements['log_level'].value
+        gui_log_level_val = getattr(logging, gui_log_level_str.upper(), logging.INFO)
+
+        # If no handlers are configured yet by basicConfig, set up a basic one for console too.
+        # This ensures logs go to console if main() is never called by CLI path.
+        if not root_logger.handlers:
+            logging.basicConfig(
+                level=gui_log_level_val,
+                format="%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(funcName)s() - %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S"
+            )
+            logging.info(f"Root logger configured by GUI before thread start. Level: {gui_log_level_str}")
+
+        root_logger.setLevel(gui_log_level_val) # Ensure level is set
+        if gui_log_handler not in root_logger.handlers:
+            root_logger.addHandler(gui_log_handler)
+            log_message_gui(f"NiceGUI Log Handler added to root logger. Root logger level set to {gui_log_level_str}.")
+        else:
+            log_message_gui(f"NiceGUI Log Handler already present. Root logger level set to {gui_log_level_str}.")
+
+        log_message_gui("Starting data generation thread...")
+        try:
+            thread = threading.Thread(target=main, args=(cli_args_for_main_list,))
+            thread.daemon = True
+            thread.start()
+
+            def check_thread():
+                if thread.is_alive():
+                    ui.timer(1.0, check_thread, once=True)
+                else:
+                    log_message_gui("Data generation thread finished.")
+                    generate_button.enable()
+            ui.timer(1.0, check_thread, once=True)
+
+        except Exception as e:
+            log_message_gui(f"Error starting generation thread: {e}")
+            logging.exception("Error starting generation thread from GUI")
+            generate_button.enable()
+
+    with ui.header(elevated=True).style('background-color: #3874d8').classes('items-center justify-between'):
+        ui.label('RVTools Synthetic Data Generator').classes('text-h5')
+
+    with ui.splitter(value=30).classes('w-full h-screen') as splitter:
+        with splitter.before:
+            with ui.card().tight().classes("q-pa-md"):
+                ui.label("Configuration").classes("text-h6 q-mb-md")
+                ui_elements['num_vms'] = ui.number(label="Number of VMs (base)", value=cli_args_for_defaults.num_vms or 50, min=1, step=1, format="%.0f")
+                ui_elements['use_ai'] = ui.switch("Use AI Assistance", value=cli_args_for_defaults.use_ai)
+
+                with ui.row().classes('w-full items-center'):
+                    ui_elements['ai_provider'] = ui.select(['mock', 'openai', 'ollama'], label="AI Provider", value=cli_args_for_defaults.ai_provider).style('width: 150px')
+                    ui_elements['openai_model_name'] = ui.input(label="OpenAI Model", value=cli_args_for_defaults.ai_model).style('min-width: 150px')
+                    ui_elements['ollama_model_name'] = ui.input(label="Ollama Model", value=cli_args_for_defaults.ollama_model_name).style('min-width: 150px')
+
+                ui_elements['openai_model_name'].bind_visibility_from(ui_elements['ai_provider'], 'value', lambda p: p == 'openai')
+                ui_elements['ollama_model_name'].bind_visibility_from(ui_elements['ai_provider'], 'value', lambda p: p == 'ollama')
+
+                ui_elements['complexity'] = ui.select(['simple', 'medium', 'fancy'], label="Complexity", value=cli_args_for_defaults.complexity)
+                ui_elements['config_file'] = ui.input(label="Scenario Config File (path)", value=cli_args_for_defaults.config_file or "")
+                ui_elements['output_dir'] = ui.input(label="Output Directory", value=cli_args_for_defaults.output_dir)
+                ui_elements['zip_filename'] = ui.input(label="ZIP Filename", value=cli_args_for_defaults.zip_filename)
+                ui_elements['force_overwrite'] = ui.switch("Force Overwrite ZIP", value=cli_args_for_defaults.force_overwrite)
+
+                all_csv_keys = list(CSV_HEADERS.keys())
+                default_csv_selection = cli_args_for_defaults.csv_types
+                if default_csv_selection == ["all"]:
+                    default_csv_selection = all_csv_keys
+
+                ui_elements['csv_types'] = ui.select(all_csv_keys, label="CSV Types (Ctrl+Click or use 'all')", multiple=True, value=default_csv_selection).props('use-chips')
+
+                ui_elements['log_level'] = ui.select(['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], label="Log Level", value=cli_args_for_defaults.log_level)
+
+                generate_button = ui.button("Generate Data", on_click=start_generation_thread).props('color=primary icon=play_arrow')
+
+        with splitter.after:
+            with ui.card().tight().classes("w-full h-full"):
+                 ui.label("Output Log").classes("text-subtitle2 q-pa-sm bg-grey-2")
+                 log_area = ui.log(max_lines=1000).classes('w-full flex-grow')
+
+    log_message_gui("NiceGUI application started. Configure and click 'Generate Data'.")
+
+    import asyncio # Required for ui.context.loop.call_soon_threadsafe
+    ui.run(title="RVTools Data Generator", reload=False, port=8080, uvicorn_logging_level='warning')
 
 
 # --- Main Execution Logic ---
-def main(cli_args_list=None): # Added cli_args_list parameter
-    print(LOGO)
-    args = parse_arguments(cli_args_list) # Pass cli_args_list to parse_arguments
+def main(cli_input=None): # Renamed arg for clarity
+
+    is_gui_call = isinstance(cli_input, list) # True if called from launch_nicegui_app with list of args
+
+    args = None
+    if isinstance(cli_input, argparse.Namespace): # If already parsed (e.g. future direct call with parsed args)
+        args = cli_input
+    else: # List of strings from GUI, or None from __main__
+        args = parse_arguments(cli_input)
+
+    # Logging setup:
+    # If this `main` is called by the GUI thread, the GUI's log handler is already added to the root logger,
+    # and the root logger's level is set by the GUI.
+    # If this `main` is called from `if __name__ == "__main__"`, then we need to configure logging here.
+
+    if not is_gui_call: # Only print LOGO and do basicConfig if it's a direct CLI run
+        print(LOGO)
+        log_level_str = args.log_level.upper()
+        log_level_val = getattr(logging, log_level_str, logging.INFO)
+        logging.basicConfig(
+            level=log_level_val,
+            format="%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(funcName)s() - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        logging.info(f"Script started in CLI mode. Log level set to: {log_level_str}")
+    else: # Called from GUI thread
+        # The GUI's launch_nicegui_app should have already configured the root logger
+        # and added its handler. We just log that main was called.
+        logging.info(f"main() invoked by GUI. Effective log level from GUI: {args.log_level.upper()}")
+
 
     scenario_config = load_scenario_config(args.config_file)
 
     num_vms_for_complexity = args.num_vms
     if num_vms_for_complexity is None and scenario_config:
         total_scenario_vms = 0
-        for dc_conf in scenario_config.get('datacenters', []): # Use dc_conf
-            for plan_item in dc_conf.get('deployment_plan', []): # Use dc_conf
+        for dc_conf in scenario_config.get('datacenters', []):
+            for plan_item in dc_conf.get('deployment_plan', []):
                 total_scenario_vms += plan_item.get('count', 0)
         if total_scenario_vms > 0:
             num_vms_for_complexity = total_scenario_vms
@@ -1611,11 +1835,8 @@ def main(cli_args_list=None): # Added cli_args_list parameter
     ENVIRONMENT_DATA["config"] = vars(args)
     ENVIRONMENT_DATA["config"].update(complexity_params)
 
-    if args.gui:
-        gui_config = show_basic_gui(args)
-        if gui_config is None :
-            print("Exiting due to GUI closure or failure.")
-            sys.exit() # Changed exit() to sys.exit()
+    # GUI launch is now handled before main() is called if --web_gui is used.
+    # So, no need for 'if args.gui:' here to call a GUI function.
 
     csv_to_generate = list(CSV_HEADERS.keys())
     if "all" not in args.csv_types:
@@ -1623,12 +1844,9 @@ def main(cli_args_list=None): # Added cli_args_list parameter
     elif args.complexity == 'simple' and "all" in args.csv_types and "core_csvs_simple" in complexity_params:
         csv_to_generate = [csv_type for csv_type in complexity_params["core_csvs_simple"] if csv_type in CSV_HEADERS]
 
-    print(f"Starting data generation. Target VMs: {actual_num_vms}, Complexity: {args.complexity}, AI: {args.use_ai} ({args.ai_provider}), Output: {args.output_dir}")
+    logging.info(f"Starting data generation. Target VMs: {actual_num_vms}, Complexity: {args.complexity}, AI: {args.use_ai} ({args.ai_provider}), Output: {args.output_dir}")
 
-    # Use a default SDK server name if not derivable from config_file (which is a path)
-    # This part of get_sdk_server_info might need adjustment if config_file was meant to hold server name directly.
-    # For now, let's assume config_file path itself isn't the server name.
-    sdk_server_name, base_sdk_uuid = get_sdk_server_info() # Simplified call
+    sdk_server_name, base_sdk_uuid = get_sdk_server_info()
 
     ai_common_kwargs = {
         "complexity_params": complexity_params,
@@ -1667,15 +1885,15 @@ def main(cli_args_list=None): # Added cli_args_list parameter
     sequential_tasks_configs = {name: cfg for name, cfg in sequential_tasks_configs_base.items() if name in csv_to_generate}
     parallel_tasks_configs = {name: cfg for name, cfg in parallel_tasks_configs_base.items() if name in csv_to_generate}
 
-    print("\n--- Running Sequential Generation Tasks ---")
+    logging.info("\n--- Running Sequential Generation Tasks ---")
     for name, task_config in sequential_tasks_configs.items():
-        print(f"Generating {name}...")
+        logging.info(f"Generating {name}...")
         task_config["func"](**task_config["args"])
 
-    print("\n--- Running Parallelizable Generation Tasks ---")
+    logging.info("\n--- Running Parallelizable Generation Tasks ---")
     threads = []
     for name, task_config in parallel_tasks_configs.items():
-        print(f"Starting thread for {name}...")
+        logging.debug(f"Starting thread for {name}...")
         thread = threading.Thread(target=task_config["func"], kwargs=task_config["args"], name=f"Thread-{name}")
         threads.append(thread)
         thread.start()
@@ -1683,22 +1901,20 @@ def main(cli_args_list=None): # Added cli_args_list parameter
     for thread in tqdm(threads, desc="Joining Threads") if TQDM_AVAILABLE and threads else threads:
         thread.join()
 
-    print("\n--- All CSV generation tasks complete ---")
+    logging.info("\n--- All CSV generation tasks complete ---")
 
     timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     final_zip_filename = args.zip_filename.replace("{timestamp}", timestamp_str)
     zip_filepath = os.path.join(args.output_dir, final_zip_filename)
 
     if os.path.exists(zip_filepath) and not args.force_overwrite:
-        print(f"ZIP file {zip_filepath} already exists. Use --force_overwrite to replace.")
+        logging.warning(f"ZIP file {zip_filepath} already exists. Use --force_overwrite to replace.")
     else:
-        print(f"\nAttempting to create zip file: {zip_filepath}")
+        logging.info(f"\nAttempting to create zip file: {zip_filepath}")
         try:
-            # Corrected: csv_output_path should be based on args.output_dir and DEFAULT_CSV_SUBDIR
-            # This was a global variable, but it's better to define it based on current args here or pass explicitly
             current_csv_output_path = os.path.join(args.output_dir, DEFAULT_CSV_SUBDIR)
             if not os.path.isdir(current_csv_output_path) or not os.listdir(current_csv_output_path):
-                 print(f"Warning: Source CSV directory {current_csv_output_path} is empty or does not exist. No ZIP created.")
+                 logging.warning(f"Source CSV directory {current_csv_output_path} is empty or does not exist. No ZIP created.")
             else:
                 with zipfile.ZipFile(zip_filepath, 'w', zipfile.ZIP_DEFLATED) as zf:
                     for root, _, files in os.walk(current_csv_output_path):
@@ -1707,14 +1923,30 @@ def main(cli_args_list=None): # Added cli_args_list parameter
                                 file_path = os.path.join(root, file)
                                 arcname = os.path.join(DEFAULT_CSV_SUBDIR, os.path.relpath(file_path, current_csv_output_path))
                                 zf.write(file_path, arcname=arcname)
-                print(f"Successfully created ZIP file: {zip_filepath}")
+                logging.info(f"Successfully created ZIP file: {zip_filepath}")
         except Exception as e:
-            print(f"Error creating ZIP file: {e}")
+            logging.exception(f"Error creating ZIP file: {e}")
 
-    print("\nRVTools Data Generator script finished.")
+    logging.info("\nRVTools Data Generator script finished.")
 
 if __name__ == "__main__":
-    main()
+    # Parse args once to check for --web_gui before deciding how to run main or launch_nicegui_app
+    pre_args = parse_arguments() # Parses from sys.argv directly
+
+    if pre_args.web_gui:
+        if NICEGUI_AVAILABLE:
+            # Pass all initially parsed args to NiceGUI for default values
+            # Note: launch_nicegui_app will re-parse args constructed from GUI elements for main()
+            launch_nicegui_app(pre_args)
+        else:
+            # Logger won't be configured yet by main script's logic.
+            print("ERROR: Web GUI mode requested (--web_gui) but NiceGUI library is not available.")
+            print("Please install it using: pip install nicegui")
+            sys.exit(1)
+    else:
+        # Standard CLI execution: main() will handle its own arg parsing from sys.argv (as cli_input will be None)
+        # and also its own logging setup.
+        main() # cli_input is None, so main calls parse_arguments() itself.
 
 
 # Ensure all other generate_*.csv functions are defined above main, even if as placeholders.
@@ -1744,53 +1976,53 @@ if __name__ == "__main__":
 # So the context for the `vHBA` modification should be correct.
 
 def generate_vtools_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vTools generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vTools generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_vpartition_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vPartition generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vPartition generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_vcd_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vCD generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vCD generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_vfloppy_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vFloppy generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vFloppy generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_vusb_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vUSB generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vUSB generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_vnic_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vNIC generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vNIC generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_vswitch_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vSwitch generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vSwitch generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_vport_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vPort generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vPort generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_dvswitch_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: dvSwitch generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: dvSwitch generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_dvport_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: dvPort generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: dvPort generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 # generate_vdatastore_csv is already updated.
 
 def generate_vrp_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vRP generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vRP generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 
 def generate_vtag_csv(complexity_params, scenario_config=None, use_ai_cli_flag=False, ai_provider_cli_arg="mock", ollama_model_name="llama3"): # Added AI args
-    print(f"Placeholder: vTag generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
+    logging.debug(f"Placeholder: vTag generation called (AI: {use_ai_cli_flag}, Provider: {ai_provider_cli_arg}, Ollama Model: {ollama_model_name})")
     pass
 # ... and any other CSV functions that were present in Turn 68 state.
 # For this task, the essential parts are vInfo, vHost, and vHBA structures, and the main execution flow.

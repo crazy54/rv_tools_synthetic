@@ -56,4 +56,3 @@ Refer to `AI_CONFIGURATION.md` for more details on setting up and using AI featu
 ## License
 
 (Placeholder for license information - e.g., MIT License)
-```
