@@ -1,6 +1,6 @@
 # RVTools Synthetic Data Generator
 
-This script generates a synthetic RVTools export (a ZIP file containing multiple CSVs) that mimics the output of the popular RVTools utility used for VMware vSphere environment documentation. The generated data can be used for testing, development, demonstrations, or any scenario where realistic-looking VMware infrastructure data is needed without access to a live environment.
+This repo and the scripts within generates a fully customized and detailed synthetic RVTools report export (a ZIP file containing multiple CSVs) that mimics the output of the popular RVTools utility used for VMware vSphere environment documentation. The generated data can be used for testing, development, demonstrations, or any scenario where realistic-looking VMware infrastructure data is needed without access to a live environment.
 
 ## Features
 
